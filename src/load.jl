@@ -3,8 +3,8 @@ include("constraint.jl")
 
 function numberconstraint!(m::SOItoMOIBridge, ci, constr, ::Type)
     n = nconstraints(constr)
-    m.constrmap[ci] = m._constr + (1:n)
-    m._constr += n
+    m.constrmap[ci] = m.constr + (1:n)
+    m.constr += n
 end
 
 for f in (:loadconstraint, :createslack, :numberconstraint)
@@ -55,14 +55,14 @@ function nconstraints(cs::SDConstraints)
 end
 
 function init!(m::SOItoMOIBridge)
-    m._nconstrs = nconstraints(m.sdinstance.sa) + nconstraints(m.sdinstance.va)
-    m.varmap = Vector{Vector{Tuple{Int,Int,Int,Float64}}}(m.nvars)
-    m.constrmap = Vector{UnitRange{Int}}(m.nconstrs)
-    @show m._nconstrs
-    m.slackmap = Vector{Tuple{Int, Int, Int, Float64}}(m._nconstrs)
+    m.nconstrs = nconstraints(m.sdinstance.sa) + nconstraints(m.sdinstance.va)
+    m.varmap = Vector{Vector{Tuple{Int,Int,Int,Float64}}}(m.sdinstance.nvars)
+    m.constrmap = Vector{UnitRange{Int}}(m.sdinstance.nconstrs)
+    @show m.nconstrs
+    m.slackmap = Vector{Tuple{Int, Int, Int, Float64}}(m.nconstrs)
     @show length(m.slackmap)
-    m._constr = 0
-    m.free = IntSet(1:m.nvars)
+    m.constr = 0
+    m.free = IntSet(1:m.sdinstance.nvars)
 end
 
 function loadprimal!(m::SOItoMOIBridge)
@@ -74,7 +74,7 @@ function loadprimal!(m::SOItoMOIBridge)
     numberconstraints!(m, m.sdinstance.va)
     createslacks!(m, m.sdinstance.sa)
     createslacks!(m, m.sdinstance.va)
-    initinstance!(m.sdsolver, m.blockdims, m._nconstrs)
+    initinstance!(m.sdsolver, m.blockdims, m.nconstrs)
     loadconstraints!(m, m.sdinstance.sa)
     loadconstraints!(m, m.sdinstance.va)
     loadobjective!(m)

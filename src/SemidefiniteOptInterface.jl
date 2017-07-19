@@ -17,30 +17,28 @@ const AF{T}  = Union{SAF{T}, VAF{T}}
 const ASF{T} = Union{SVF, SAF{T}}
 const AVF{T} = Union{VVF, VAF{T}}
 
+const CR{FT, ST} = MOI.ConstraintReference{FT, ST}
+
 include("sdinstance.jl")
 
 mutable struct SOItoMOIBridge{ST <: AbstractSDSolver, SIT <: AbstractSDSolverInstance} <: MOI.AbstractSolverInstance
     solver::ST
     sdinstance::SDInstance{Float64}
     sdsolver::SIT
-    nvars::UInt64
-    nconstrs::UInt64
-    _nconstrs::Int
-    _constr::Int
+    nconstrs::Int
+    constr::Int
     nblocks::Int
     blockdims::Vector{Int}
     free::IntSet
     varmap::Vector{Vector{Tuple{Int, Int, Int, Float64}}} # Variable Reference value vi -> blk, i, j, coef
-    constrloc::Vector{Int} # Constraint Reference value ci -> index in array in sdinstance
     constrmap::Vector{UnitRange{Int}} # Constraint Reference value ci -> cs
     slackmap::Vector{Tuple{Int, Int, Int, Float64}} # c -> blk, i, j, coef
     function SOItoMOIBridge(solver::ST, sdsolver::SIT) where {ST, SIT}
         new{ST, SIT}(solver, SDInstance{Float64}(), sdsolver,
-            0, 0, 0, 0, 0,
+            0, 0, 0,
             Int[],
             IntSet(),
             Vector{Tuple{Int,Int,Int,Float64}}[],
-            Int[],
             UnitRange{Int}[],
             Tuple{Int, Int, Int, Float64}[])
     end
@@ -65,30 +63,26 @@ include("load.jl")
 
 # Variables
 
-MOI.addvariable!(m::SOItoMOIBridge) = MOI.VariableReference(m.nvars += 1)
-function MOI.addvariables!(m::SOItoMOIBridge, n::Integer)
-    [MOI.addvariable!(m) for i in 1:n]
-end
-
-MOI.getattribute(m::SOItoMOIBridge, ::MOI.NumberOfVariables) = m.nvars
+MOI.addvariable!(m::SOItoMOIBridge) = MOI.addvariable!(m.sdinstance)
+MOI.addvariables!(m::SOItoMOIBridge, n::Integer) = MOI.addvariables!(m.sdinstance, n)
 
 # Constraints
 
-function MOI.addconstraint!(m::SOItoMOIBridge, f, s)
-    _addconstraint!(m.sdinstance, m.nconstrs += 1, f, s)
-end
+MOI.addconstraint!(m::SOItoMOIBridge, f, s) = MOI.addconstraint!(m.sdinstance, f, s)
 
-function MOI.getattribute(m::SOItoMOIBridge, loc::MOI.ListOfConstraints)
-    MOI.getattribute(m.sdinstance, loc)
-end
-
-function MOI.getattribute(m::SOItoMOIBridge, noc::MOI.NumberOfConstraints)
-    MOI.getattribute(m.sdinstance, noc)
+function MOI.getattribute(m::SOItoMOIBridge, a::Union{MOI.ListOfConstraints,
+                                                      MOI.NumberOfConstraints,
+                                                      MOI.NumberOfVariables})
+    MOI.getattribute(m.sdinstance, a)
 end
 
 function MOI.optimize!(m::SOItoMOIBridge)
     loadprimal!(m)
     MOI.optimize!(m.sdsolver)
+end
+
+function MOI.modifyconstraint!(m::SOItoMOIBridge, cr::CR, change)
+    MOI.modifyconstraint!(m.sdinstance, cr, change)
 end
 
 # Objective
@@ -101,6 +95,9 @@ end
 _objsgn(m) = m.sdinstance.sense == MOI.MinSense ? -1 : 1
 function MOI.getattribute(m, ::MOI.ObjectiveValue)
     _objsgn(m) * getprimalobjectivevalue(m.sdsolver) + m.sdinstance.objective.constant
+end
+function MOI.modifyobjective!(m, change::MOI.AbstractFunctionModification)
+    m.sdinstance.objective = MOI.modifyfunction(m.sdinstance.objective, change)
 end
 
 # Attributes
@@ -144,8 +141,8 @@ function getslack(m::SOItoMOIBridge, c::Int)
     x
 end
 
-function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintPrimal, vr::MOI.ConstraintReference)
-    getslack.(m, m.constrmap[vr.value])
+function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintPrimal, cr::CR)
+    getslack.(m, m.constrmap[cr.value])
 end
 
 function getvardual(m::SOItoMOIBridge, vi::UInt64)
@@ -158,7 +155,7 @@ function getvardual(m::SOItoMOIBridge, vi::UInt64)
 end
 getvardual(m::SOItoMOIBridge, f::SVF) = getvardual(m, f.variable.value)
 getvardual(m::SOItoMOIBridge, f::VVF) = map(vr -> getvardual(m, vr.value), f.variables)
-function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::MOI.ConstraintReference{<:VF})
+function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR{<:VF})
     getvardual(m, _get_constr(m, cr))
 end
 
@@ -169,7 +166,7 @@ function getdual(m::SOItoMOIBridge, c::Int)
         gety(m.sdsolver)[c]
     end
 end
-function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::MOI.ConstraintReference{<:AF})
+function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR{<:AF})
     getdual.(m, m.constrmap[cr.value])
 end
 
