@@ -58,9 +58,7 @@ function init!(m::SOItoMOIBridge)
     m.nconstrs = nconstraints(m.sdinstance.sa) + nconstraints(m.sdinstance.va)
     m.varmap = Vector{Vector{Tuple{Int,Int,Int,Float64}}}(m.sdinstance.nvars)
     m.constrmap = Vector{UnitRange{Int}}(m.sdinstance.nconstrs)
-    @show m.nconstrs
     m.slackmap = Vector{Tuple{Int, Int, Int, Float64}}(m.nconstrs)
-    @show length(m.slackmap)
     m.constr = 0
     m.free = IntSet(1:m.sdinstance.nvars)
 end

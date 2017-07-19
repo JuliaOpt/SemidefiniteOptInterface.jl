@@ -21,7 +21,7 @@ _getconstant(s::MOI.GreaterThan) = s.lower
 
 _cst(f, s) = f
 function _cst{T}(f::SAF{T}, s::SS)
-    SAF{T}(f.variables, f.coefficients, f.constant - _cst(s))
+    SAF{T}(f.variables, f.coefficients, f.constant - _getconstant(s))
 end
 
 function _addconstraint!{FT}(constrs::Vector{Tuple{UInt64, FT}}, ci::UInt64, f::FT, s)
@@ -33,14 +33,26 @@ _addconstraint!(m::SDConstraints, ci::UInt64, f, s::NS) = _addconstraint!(m.nneg
 _addconstraint!(m::SDConstraints, ci::UInt64, f, s::PS) = _addconstraint!(m.nposs, ci, f, s)
 _addconstraint!(m::SDConstraints, ci::UInt64, f, s::DS) = _addconstraint!(m.psdcs, ci, f, s)
 
+function _delete!(constrs::Vector, i::Int, cr::CR)
+    deleteat!(constrs, i)
+    @view constrs[i:end]
+end
+
+_getfun(i::UInt64, f) = f
+function _getfunction(constrs::Vector, i::Int, cr::CR)
+    _getfun(constrs[i]...)
+end
+
 function _modifyconstraint!{FT}(constrs::Vector{Tuple{UInt64, FT}}, i::Int, cr::CR{FT}, change::FT)
     constrs[i] = change
 end
 function _modifyconstraint!{FT}(constrs::Vector{Tuple{UInt64, FT}}, i::Int, cr::CR{FT}, change::MOI.AbstractFunctionModification)
-    constrs[i] = MOI.modifyfunction(constrs[i], change)
+    ci, f = constrs[i]
+    constrs[i] = (ci, MOI.modifyfunction(f, change))
 end
 function _modifyconstraint!{FT}(constrs::Vector{Tuple{UInt64, FT}}, i::Int, cr::CR{FT}, change::Function)
-    constrs[i] = change(constrs[i])
+    ci, f = constrs[i]
+    constrs[i] = (ci, change(f))
 end
 _modifyconstraint!{FT}(m::SDConstraints, i::Int, cr::CR{FT, <:ZS}, change) = _modifyconstraint!(m.zeros, i, cr, change)
 _modifyconstraint!{FT}(m::SDConstraints, i::Int, cr::CR{FT, <:NS}, change) = _modifyconstraint!(m.nnegs, i, cr, change)
@@ -93,21 +105,47 @@ function MOI.addvariables!(m::SDInstance, n::Integer)
     [MOI.addvariable!(m) for i in 1:n]
 end
 
+# Objective
+MOI.getattribute(m::SDInstance, ::MOI.Sense) = m.sense
+
 # Constraints
 _addconstraint!(m::SDInstance, ci::UInt64, f::SVF, s) = _addconstraint!(m.sv, ci, f, s)
 _addconstraint!(m::SDInstance, ci::UInt64, f::SAF, s) = _addconstraint!(m.sa, ci, f, s)
 _addconstraint!(m::SDInstance, ci::UInt64, f::VVF, s) = _addconstraint!(m.vv, ci, f, s)
 _addconstraint!(m::SDInstance, ci::UInt64, f::VAF, s) = _addconstraint!(m.va, ci, f, s)
 
-function _setrhs(m::SDInstance, ci::UInt64, s) end
-function _setrhs(m::SDInstance, ci::UInt64, s::SS)
-    m.rhs[ci] = _getconstant(s)
+function _setrhs{T}(m::SDInstance{T}, s)
+    push!(m.rhs, zero(T))
+end
+function _setrhs(m::SDInstance, s::SS)
+    push!(m.rhs, _getconstant(s))
 end
 
 function MOI.addconstraint!{FT, ST}(m::SDInstance, f::FT, s::ST)
     push!(m.constrmap, _addconstraint!(m, m.nconstrs += 1, f, s))
-    _setrhs(m, m.nconstrs, s)
+    _setrhs(m, s)
     CR{FT, ST}(m.nconstrs)
+end
+
+for fun in (:_delete!, :_getfunction)
+    @eval begin
+        $fun{F}(m::SDConstraints, i::Int, cr::CR{F, <:ZS}) = $fun(m.zeros, i, cr)
+        $fun{F}(m::SDConstraints, i::Int, cr::CR{F, <:NS}) = $fun(m.nnegs, i, cr)
+        $fun{F}(m::SDConstraints, i::Int, cr::CR{F, <:PS}) = $fun(m.nposs, i, cr)
+        $fun{F}(m::SDConstraints, i::Int, cr::CR{F, <:DS}) = $fun(m.psdcs, i, cr)
+
+        $fun(m::SDInstance, i::Int, cr::CR{<:SVF}) = $fun(m.sv, i, cr)
+        $fun(m::SDInstance, i::Int, cr::CR{<:SAF}) = $fun(m.sa, i, cr)
+        $fun(m::SDInstance, i::Int, cr::CR{<:VVF}) = $fun(m.vv, i, cr)
+        $fun(m::SDInstance, i::Int, cr::CR{<:VAF}) = $fun(m.va, i, cr)
+    end
+end
+
+function MOI.delete!(m::SDInstance, cr::CR)
+    for (ci, _) in _delete!(m, m.constrmap[cr.value], cr)
+        m.constrmap[ci] -= 1
+    end
+    m.constrmap[cr.value] = 0
 end
 
 _modifyconstraint!(m::SDInstance, i::Int, cr::CR{<:SVF}, change) = _modifyconstraint!(m.sv, i, cr, change)
@@ -123,7 +161,7 @@ function _modifyconstraint!(m::SDInstance, i::Int, cr::CR{<:SAF}, change::SS)
     x = _getconstant(change)
     Δ = x - m.rhs[cr.value]
     m.rhs[cr.value] = x
-    _modifyconstant(m, i, cr, f -> MOI.modifyfunction(f, MOI.ScalarConstantChange(f.constant + Δ)))
+    _modifyconstraint!(m, i, cr, f -> MOI.modifyfunction(f, MOI.ScalarConstantChange(f.constant + Δ)))
 end
 
 function MOI.modifyconstraint!(m::SDInstance, cr::CR, change)
@@ -138,3 +176,9 @@ MOI.getattribute(m::SDInstance, noc::MOI.NumberOfConstraints{<:SVF}) = MOI.getat
 MOI.getattribute(m::SDInstance, noc::MOI.NumberOfConstraints{<:SAF}) = MOI.getattribute(m.sa, noc)
 MOI.getattribute(m::SDInstance, noc::MOI.NumberOfConstraints{<:VVF}) = MOI.getattribute(m.vv, noc)
 MOI.getattribute(m::SDInstance, noc::MOI.NumberOfConstraints{<:VAF}) = MOI.getattribute(m.va, noc)
+
+MOI.cangetattribute(m::SDInstance, ::Union{MOI.ConstraintFunction, MOI.ConstraintSet}, ref) = false
+MOI.cangetattribute(m::SDInstance, ::MOI.ConstraintFunction, ::CR{<:VF}) = true
+function MOI.getattribute(m::SDInstance, ::MOI.ConstraintFunction, cr::CR{<:VF})
+    _getfunction(m, m.constrmap[cr.value], cr)
+end

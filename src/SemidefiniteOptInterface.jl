@@ -4,6 +4,9 @@ using MathOptInterface
 const MOI = MathOptInterface
 
 abstract type AbstractSDSolver <: MOI.AbstractSolver end
+
+MOI.getattribute(m::AbstractSDSolver, ::MOI.SupportsDuals) = true
+
 abstract type AbstractSDSolverInstance <: MOI.AbstractSolverInstance end
 
 include("interface.jl")
@@ -68,11 +71,16 @@ MOI.addvariables!(m::SOItoMOIBridge, n::Integer) = MOI.addvariables!(m.sdinstanc
 
 # Constraints
 
+MOI.delete!(m::SOItoMOIBridge, cr::CR) = MOI.delete!(m.sdinstance, cr)
 MOI.addconstraint!(m::SOItoMOIBridge, f, s) = MOI.addconstraint!(m.sdinstance, f, s)
+
+MOI.cangetattribute(m::SOItoMOIBridge, a::Union{MOI.ConstraintFunction, MOI.ConstraintSet}, ref) = MOI.cangetattribute(m.sdinstance, a, ref)
+MOI.getattribute(m::SOItoMOIBridge, a::Union{MOI.ConstraintFunction, MOI.ConstraintSet}, ref) = MOI.getattribute(m.sdinstance, a, ref)
 
 function MOI.getattribute(m::SOItoMOIBridge, a::Union{MOI.ListOfConstraints,
                                                       MOI.NumberOfConstraints,
-                                                      MOI.NumberOfVariables})
+                                                      MOI.NumberOfVariables,
+                                                      MOI.Sense})
     MOI.getattribute(m.sdinstance, a)
 end
 
@@ -103,7 +111,7 @@ end
 # Attributes
 
 MOI.cangetattribute(m::SOItoMOIBridge, s::Union{MOI.PrimalStatus,
-                                               MOI.DualStatus}) = MOI.cangetattribute(m.sdsolver, s)
+                                                MOI.DualStatus}) = MOI.cangetattribute(m.sdsolver, s)
 
 MOI.cangetattribute(m::SOItoMOIBridge, ::Union{MOI.TerminationStatus,
                                                MOI.ObjectiveValue,
@@ -131,24 +139,33 @@ function MOI.getattribute(m::SOItoMOIBridge, vp::MOI.VariablePrimal, vr::Vector{
     MOI.getattribute.(m, vp, vr)
 end
 
+function _getattribute(m::SOItoMOIBridge, cr::CR{<:ASF}, f)
+    cs = m.constrmap[cr.value]
+    @assert length(cs) == 1
+    f(m, first(cs))
+end
+function _getattribute(m::SOItoMOIBridge, cr::CR{<:AVF}, f)
+    f.(m, m.constrmap[cr.value])
+end
 
 function getslack(m::SOItoMOIBridge, c::Int)
     X = getX(m.sdsolver)
-    x = 0.0
-    for (blk, i, j, coef) in m.slackmap[c]
-        x += X[blk][i, j] * coef
+    blk, i, j, coef = m.slackmap[c]
+    if iszero(blk)
+        0.0
+    else
+        X[blk][i, j] * coef
     end
-    x
 end
 
-function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintPrimal, cr::CR)
-    getslack.(m, m.constrmap[cr.value])
+function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR)
+    _getattribute(m, cr, getslack)
 end
 
 function getvardual(m::SOItoMOIBridge, vi::UInt64)
-    Z = getZ(model.sdsolver)
+    Z = getZ(m.sdsolver)
     z = 0.
-    for (blk, i, j, coef) in model.varmap[vi]
+    for (blk, i, j, coef) in m.varmap[vi]
         z += Z[blk][i, j] / coef
     end
     z
@@ -156,7 +173,7 @@ end
 getvardual(m::SOItoMOIBridge, f::SVF) = getvardual(m, f.variable.value)
 getvardual(m::SOItoMOIBridge, f::VVF) = map(vr -> getvardual(m, vr.value), f.variables)
 function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR{<:VF})
-    getvardual(m, _get_constr(m, cr))
+    getvardual(m, MOI.getattribute(m, MOI.ConstraintFunction(), cr))
 end
 
 function getdual(m::SOItoMOIBridge, c::Int)
@@ -166,8 +183,8 @@ function getdual(m::SOItoMOIBridge, c::Int)
         gety(m.sdsolver)[c]
     end
 end
-function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR{<:AF})
-    getdual.(m, m.constrmap[cr.value])
+function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR)
+    _getattribute(m, cr, getdual)
 end
 
 end # module
