@@ -56,11 +56,13 @@ end
 
 function init!(m::SOItoMOIBridge)
     m.nconstrs = nconstraints(m.sdinstance.sa) + nconstraints(m.sdinstance.va)
+    m.constr = 0
+    m.nblocks = 0
+    m.blockdims = Int[]
+    m.free = IntSet(1:m.sdinstance.nvars)
     m.varmap = Vector{Vector{Tuple{Int,Int,Int,Float64}}}(m.sdinstance.nvars)
     m.constrmap = Vector{UnitRange{Int}}(m.sdinstance.nconstrs)
     m.slackmap = Vector{Tuple{Int, Int, Int, Float64}}(m.nconstrs)
-    m.constr = 0
-    m.free = IntSet(1:m.sdinstance.nvars)
 end
 
 function loadprimal!(m::SOItoMOIBridge)

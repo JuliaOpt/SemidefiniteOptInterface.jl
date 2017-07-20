@@ -3,6 +3,9 @@ module SemidefiniteOptInterface
 using MathOptInterface
 const MOI = MathOptInterface
 
+using MathOptInterfaceUtilities
+const MOIU = MathOptInterfaceUtilities
+
 abstract type AbstractSDSolver <: MOI.AbstractSolver end
 
 MOI.getattribute(m::AbstractSDSolver, ::MOI.SupportsDuals) = true
@@ -11,8 +14,8 @@ abstract type AbstractSDSolverInstance <: MOI.AbstractSolverInstance end
 
 include("interface.jl")
 
-const SVF = MOI.ScalarVariablewiseFunction
-const VVF = MOI.VectorVariablewiseFunction
+const SVF = MOI.SingleVariable
+const VVF = MOI.VectorOfVariables
 const VF  = Union{SVF, VVF}
 const SAF{T} = MOI.ScalarAffineFunction{T}
 const VAF{T} = MOI.VectorAffineFunction{T}
@@ -105,7 +108,7 @@ function MOI.getattribute(m, ::MOI.ObjectiveValue)
     _objsgn(m) * getprimalobjectivevalue(m.sdsolver) + m.sdinstance.objective.constant
 end
 function MOI.modifyobjective!(m, change::MOI.AbstractFunctionModification)
-    m.sdinstance.objective = MOI.modifyfunction(m.sdinstance.objective, change)
+    m.sdinstance.objective = MOIU.modifyfunction(m.sdinstance.objective, change)
 end
 
 # Attributes
@@ -159,7 +162,7 @@ function getslack(m::SOItoMOIBridge, c::Int)
 end
 
 function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR)
-    _getattribute(m, cr, getslack)
+    _getattribute(m, cr, getslack) + m.sdinstance.rhs[cr.value]
 end
 
 function getvardual(m::SOItoMOIBridge, vi::UInt64)
@@ -180,7 +183,7 @@ function getdual(m::SOItoMOIBridge, c::Int)
     if c == 0
         0.
     else
-        gety(m.sdsolver)[c]
+        -gety(m.sdsolver)[c]
     end
 end
 function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR)

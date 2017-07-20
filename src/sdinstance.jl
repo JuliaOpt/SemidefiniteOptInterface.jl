@@ -48,7 +48,7 @@ function _modifyconstraint!{FT}(constrs::Vector{Tuple{UInt64, FT}}, i::Int, cr::
 end
 function _modifyconstraint!{FT}(constrs::Vector{Tuple{UInt64, FT}}, i::Int, cr::CR{FT}, change::MOI.AbstractFunctionModification)
     ci, f = constrs[i]
-    constrs[i] = (ci, MOI.modifyfunction(f, change))
+    constrs[i] = (ci, MOIU.modifyfunction(f, change))
 end
 function _modifyconstraint!{FT}(constrs::Vector{Tuple{UInt64, FT}}, i::Int, cr::CR{FT}, change::Function)
     ci, f = constrs[i]
@@ -161,7 +161,7 @@ function _modifyconstraint!(m::SDInstance, i::Int, cr::CR{<:SAF}, change::SS)
     x = _getconstant(change)
     Δ = x - m.rhs[cr.value]
     m.rhs[cr.value] = x
-    _modifyconstraint!(m, i, cr, f -> MOI.modifyfunction(f, MOI.ScalarConstantChange(f.constant + Δ)))
+    _modifyconstraint!(m, i, cr, f -> MOIU.modifyfunction(f, MOI.ScalarConstantChange(f.constant + Δ)))
 end
 
 function MOI.modifyconstraint!(m::SDInstance, cr::CR, change)
