@@ -1,27 +1,32 @@
 include("variable.jl")
 include("constraint.jl")
 
-function numberconstraint!(m::SOItoMOIBridge, ci, constr, ::Type)
-    n = nconstraints(constr)
-    m.constrmap[ci] = m.constr + (1:n)
+function numberconstraint!(m::SOItoMOIBridge, cr, f, s)
+    n = nconstraints(f)
+    m.constrmap[cr.value] = m.constr + (1:n)
     m.constr += n
 end
 
-for f in (:loadconstraint, :createslack, :numberconstraint)
+for f in (:loadvariable, :loadconstraint, :createslack, :numberconstraint)
     funs = Symbol(string(f) * "s!")
     fun = Symbol(string(f) * "!")
     @eval begin
-        function $funs{FT, ST}(m::SOItoMOIBridge, constrs::Vector{Tuple{UInt64, FT}}, ::Type{FT}, ::Type{ST})
-            for (ci, constr) in constrs
-                $fun(m, ci, constr, ST)
+        function $funs(m::SOItoMOIBridge, constrs::Vector)
+            for constr in constrs
+                $fun(m, constr...)
             end
         end
 
-        function $funs{FT}(m::SOItoMOIBridge, cs::SDConstraints{FT})
-            $funs(m, cs.zeros, FT, MOI.Zeros)
-            $funs(m, cs.nnegs, FT, MOI.Nonnegatives)
-            $funs(m, cs.nposs, FT, MOI.Nonpositives)
-            $funs(m, cs.psdcs, FT, MOI.PositiveSemidefiniteConeTriangle)
+        function $funs(m::SOItoMOIBridge, cs::SDInstanceScalarConstraints)
+            $funs(m, cs.equalto)
+            $funs(m, cs.greaterthan)
+            $funs(m, cs.lessthan)
+        end
+        function $funs(m::SOItoMOIBridge, cs::SDInstanceVectorConstraints)
+            $funs(m, cs.zeros)
+            $funs(m, cs.nonnegatives)
+            $funs(m, cs.nonpositives)
+            $funs(m, cs.positivesemidefiniteconetriangle)
         end
     end
 end
@@ -32,9 +37,12 @@ function loadobjective!(m::SOItoMOIBridge)
     for (vr, val) in zip(obj.variables, obj.coefficients)
         vi = vr.value
         if !iszero(val)
-            for (blk, i, j, coef) in m.varmap[vi]
-                # in SDP format, it is max and in MPB Conic format it is min
-                setobjectivecoefficient!(m.sdsolver, sgn * coef * val, blk, i, j)
+            for (blk, i, j, coef, shift) in m.varmap[vi]
+                if !iszero(blk)
+                    # in SDP format, it is max and in MPB Conic format it is min
+                    setobjectivecoefficient!(m.sdsolver, sgn * coef * val, blk, i, j)
+                end
+                m.objshift += coef * val * shift
             end
         end
     end
@@ -43,32 +51,45 @@ end
 nconstraints(f::VAF) = length(f.constant)
 nconstraints(f::SAF) = 1
 
-nconstraints(ci::UInt64, f::MOI.AbstractFunction) = nconstraints(f)
+nconstraints(cr::CR, f::MOI.AbstractFunction, s::MOI.AbstractSet) = nconstraints(f)
 nconstraints(c::Tuple) = nconstraints(c...)
 
-nconstraints{FT<:VAF}(cs::Vector{Tuple{UInt64, FT}}) = sum(nconstraints.(cs))
-
-nconstraints{FT<:SAF}(cs::Vector{Tuple{UInt64, FT}}) = length(cs)
-
-function nconstraints(cs::SDConstraints)
-    nconstraints(cs.zeros) + nconstraints(cs.nnegs) + nconstraints(cs.nposs) + nconstraints(cs.psdcs)
+#nconstraints(cs::Vector) = sum(nconstraints.(cs))
+function nconstraints(cs::Vector)
+    s = 0
+    for c in cs
+        s += nconstraints(c)
+    end
+    s
 end
+
+nconstraints{F<:SAF, S}(cs::Vector{MOIU.C{F, S}}) = length(cs)
+nconstraints{F<:VVF, S}(cs::Vector{MOIU.C{F, S}}) = 0
+
+function nconstraints(cs::SDInstanceScalarConstraints)
+    nconstraints(cs.equalto) + nconstraints(cs.greaterthan) + nconstraints(cs.lessthan)
+end
+function nconstraints(cs::SDInstanceVectorConstraints)
+    nconstraints(cs.zeros) + nconstraints(cs.nonnegatives) + nconstraints(cs.nonpositives) + nconstraints(cs.positivesemidefiniteconetriangle)
+end
+
 
 function init!(m::SOItoMOIBridge)
     m.nconstrs = nconstraints(m.sdinstance.sa) + nconstraints(m.sdinstance.va)
+    m.objshift = 0.0
     m.constr = 0
     m.nblocks = 0
     m.blockdims = Int[]
     m.free = IntSet(1:m.sdinstance.nvars)
-    m.varmap = Vector{Vector{Tuple{Int,Int,Int,Float64}}}(m.sdinstance.nvars)
+    m.varmap = Vector{Vector{Tuple{Int,Int,Int,Float64,Float64}}}(m.sdinstance.nvars)
     m.constrmap = Vector{UnitRange{Int}}(m.sdinstance.nconstrs)
     m.slackmap = Vector{Tuple{Int, Int, Int, Float64}}(m.nconstrs)
 end
 
 function loadprimal!(m::SOItoMOIBridge)
     init!(m)
-    loadconstraints!(m, m.sdinstance.sv)
-    loadconstraints!(m, m.sdinstance.vv)
+    loadvariables!(m, m.sdinstance.sv)
+    loadvariables!(m, m.sdinstance.vv)
     loadfreevariables!(m)
     numberconstraints!(m, m.sdinstance.sa)
     numberconstraints!(m, m.sdinstance.va)

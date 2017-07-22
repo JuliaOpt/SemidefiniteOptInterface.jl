@@ -5,6 +5,7 @@ const MOI = MathOptInterface
 
 using MathOptInterfaceUtilities
 const MOIU = MathOptInterfaceUtilities
+MOIU.@instance SDInstance () (EqualTo, GreaterThan, LessThan) (Zeros, Nonnegatives, Nonpositives, PositiveSemidefiniteConeTriangle) ()
 
 abstract type AbstractSDSolver <: MOI.AbstractSolver end
 
@@ -23,25 +24,29 @@ const AF{T}  = Union{SAF{T}, VAF{T}}
 const ASF{T} = Union{SVF, SAF{T}}
 const AVF{T} = Union{VVF, VAF{T}}
 
-const CR{FT, ST} = MOI.ConstraintReference{FT, ST}
+const ZS = Union{MOI.EqualTo, MOI.Zeros}
+const NS = Union{MOI.GreaterThan, MOI.Nonnegatives}
+const PS = Union{MOI.LessThan, MOI.Nonpositives}
+const DS = MOI.PositiveSemidefiniteConeTriangle
 
-include("sdinstance.jl")
+const CR{FT, ST} = MOI.ConstraintReference{FT, ST}
 
 mutable struct SOItoMOIBridge{ST <: AbstractSDSolver, SIT <: AbstractSDSolverInstance} <: MOI.AbstractSolverInstance
     solver::ST
     sdinstance::SDInstance{Float64}
     sdsolver::SIT
+    objshift::Float64
     nconstrs::Int
     constr::Int
     nblocks::Int
     blockdims::Vector{Int}
     free::IntSet
-    varmap::Vector{Vector{Tuple{Int, Int, Int, Float64}}} # Variable Reference value vi -> blk, i, j, coef
+    varmap::Vector{Vector{Tuple{Int, Int, Int, Float64, Float64}}} # Variable Reference value vi -> blk, i, j, coef, shift # x = sum coef * (X[blk][i, j] + shift)
     constrmap::Vector{UnitRange{Int}} # Constraint Reference value ci -> cs
     slackmap::Vector{Tuple{Int, Int, Int, Float64}} # c -> blk, i, j, coef
     function SOItoMOIBridge(solver::ST, sdsolver::SIT) where {ST, SIT}
         new{ST, SIT}(solver, SDInstance{Float64}(), sdsolver,
-            0, 0, 0,
+            0.0, 0, 0, 0,
             Int[],
             IntSet(),
             Vector{Tuple{Int,Int,Int,Float64}}[],
@@ -77,13 +82,18 @@ MOI.addvariables!(m::SOItoMOIBridge, n::Integer) = MOI.addvariables!(m.sdinstanc
 MOI.delete!(m::SOItoMOIBridge, cr::CR) = MOI.delete!(m.sdinstance, cr)
 MOI.addconstraint!(m::SOItoMOIBridge, f, s) = MOI.addconstraint!(m.sdinstance, f, s)
 
-MOI.cangetattribute(m::SOItoMOIBridge, a::Union{MOI.ConstraintFunction, MOI.ConstraintSet}, ref) = MOI.cangetattribute(m.sdinstance, a, ref)
-MOI.getattribute(m::SOItoMOIBridge, a::Union{MOI.ConstraintFunction, MOI.ConstraintSet}, ref) = MOI.getattribute(m.sdinstance, a, ref)
+const InstanceAttributeRef = Union{MOI.ConstraintFunction, MOI.ConstraintSet}
+MOI.cangetattribute(m::SOItoMOIBridge, a::InstanceAttributeRef, ref) = MOI.cangetattribute(m.sdinstance, a, ref)
+MOI.getattribute(m::SOItoMOIBridge, a::InstanceAttributeRef, ref) = MOI.getattribute(m.sdinstance, a, ref)
 
-function MOI.getattribute(m::SOItoMOIBridge, a::Union{MOI.ListOfConstraints,
-                                                      MOI.NumberOfConstraints,
-                                                      MOI.NumberOfVariables,
-                                                      MOI.Sense})
+const InstanceAttribute = Union{MOI.NumberOfVariables,
+                                MOI.NumberOfConstraints,
+                                MOI.ListOfConstraints,
+                                MOI.ObjectiveFunction,
+                                MOI.Sense}
+MOI.cangetattribute(m::SOItoMOIBridge, a::InstanceAttribute) = MOI.cangetattribute(m.sdinstance, a)
+
+function MOI.getattribute(m::SOItoMOIBridge, a::InstanceAttribute)
     MOI.getattribute(m.sdinstance, a)
 end
 
@@ -98,43 +108,35 @@ end
 
 # Objective
 
-function MOI.setobjective!(m::SOItoMOIBridge, sense::MOI.OptimizationSense, f)
-    m.sdinstance.sense = sense
-    m.sdinstance.objective = f
-end
+MOI.setobjective!(m::SOItoMOIBridge, sense::MOI.OptimizationSense, f) = MOI.setobjective!(m.sdinstance, sense, f)
+MOI.modifyobjective!(m::SOItoMOIBridge, change::MOI.AbstractFunctionModification) = MOI.modifyobjective!(m.sdinstance, change)
 
 _objsgn(m) = m.sdinstance.sense == MOI.MinSense ? -1 : 1
-function MOI.getattribute(m, ::MOI.ObjectiveValue)
-    _objsgn(m) * getprimalobjectivevalue(m.sdsolver) + m.sdinstance.objective.constant
-end
-function MOI.modifyobjective!(m, change::MOI.AbstractFunctionModification)
-    m.sdinstance.objective = MOIU.modifyfunction(m.sdinstance.objective, change)
+MOI.cangetattribute(m::SOItoMOIBridge, ::MOI.ObjectiveValue) = true
+function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ObjectiveValue)
+    m.objshift + _objsgn(m) * getprimalobjectivevalue(m.sdsolver) + m.sdinstance.objective.constant
 end
 
 # Attributes
 
-MOI.cangetattribute(m::SOItoMOIBridge, s::Union{MOI.PrimalStatus,
-                                                MOI.DualStatus}) = MOI.cangetattribute(m.sdsolver, s)
+MOI.cangetattribute(m::AbstractSDSolverInstance, ::MOI.TerminationStatus) = true
+const SolverStatus = Union{MOI.TerminationStatus, MOI.PrimalStatus, MOI.DualStatus}
+MOI.cangetattribute(m::SOItoMOIBridge, s::SolverStatus) = MOI.cangetattribute(m.sdsolver, s)
+MOI.getattribute(m::SOItoMOIBridge, s::SolverStatus) = MOI.getattribute(m.sdsolver, s)
 
-MOI.cangetattribute(m::SOItoMOIBridge, ::Union{MOI.TerminationStatus,
-                                               MOI.ObjectiveValue,
-                                               MOI.NumberOfVariables,
-                                               MOI.NumberOfConstraints,
-                                               MOI.ListOfConstraints}) = true
 
 MOI.cangetattribute(m::SOItoMOIBridge, ::Union{MOI.VariablePrimal,
                                                MOI.ConstraintPrimal,
                                                MOI.ConstraintDual}, ref) = true
 
-MOI.getattribute(m::SOItoMOIBridge, s::Union{MOI.TerminationStatus,
-                                             MOI.PrimalStatus,
-                                             MOI.DualStatus}) = MOI.getattribute(m.sdsolver, s)
-
 function MOI.getattribute(m::SOItoMOIBridge, ::MOI.VariablePrimal, vr::MOI.VariableReference)
     X = getX(m.sdsolver)
     x = 0.0
-    for (blk, i, j, coef) in m.varmap[vr.value]
-        x += X[blk][i, j] * coef
+    for (blk, i, j, coef, shift) in m.varmap[vr.value]
+        x += shift * coef
+        if blk != 0
+            x += X[blk][i, j] * coef
+        end
     end
     x
 end
@@ -162,14 +164,16 @@ function getslack(m::SOItoMOIBridge, c::Int)
 end
 
 function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR)
-    _getattribute(m, cr, getslack) + m.sdinstance.rhs[cr.value]
+    _getattribute(m, cr, getslack) + _getconstant(m, MOI.getattribute(m, MOI.ConstraintSet(), cr))
 end
 
 function getvardual(m::SOItoMOIBridge, vi::UInt64)
     Z = getZ(m.sdsolver)
     z = 0.
     for (blk, i, j, coef) in m.varmap[vi]
-        z += Z[blk][i, j] / coef
+        if blk != 0
+            z += Z[blk][i, j] / coef
+        end
     end
     z
 end

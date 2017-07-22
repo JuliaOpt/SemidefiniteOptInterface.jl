@@ -1,13 +1,13 @@
-function createslack!(m::SOItoMOIBridge, cs, ::Type{<:ZS})
+function createslack!(m::SOItoMOIBridge, cs, ::ZS)
     m.slackmap[cs] = (0, 0, 0, 0.)
 end
-function createslack!(m::SOItoMOIBridge, cs, ::Type{T}) where T <: Union{NS, PS}
+function createslack!(m::SOItoMOIBridge, cs, ::S) where S <: Union{NS, PS}
     blk = newblock(m, -length(cs))
     for (i, c) in enumerate(cs)
-        m.slackmap[c] = (blk, i, i, vscaling(T))
+        m.slackmap[c] = (blk, i, i, vscaling(S))
     end
 end
-function createslack!(m::SOItoMOIBridge, cs, ::Type{DS})
+function createslack!(m::SOItoMOIBridge, cs, ::DS)
     d = getmatdim(length(cs))
     k = 0
     blk = newblock(m, d)
@@ -19,9 +19,9 @@ function createslack!(m::SOItoMOIBridge, cs, ::Type{DS})
     end
 end
 
-function createslack!{S}(m::SOItoMOIBridge, ci, constr::AF, ::Type{S})
-    cs = m.constrmap[ci]
-    createslack!(m, cs, S)
+function createslack!(m::SOItoMOIBridge, cr::CR, constr::AF, s)
+    cs = m.constrmap[cr.value]
+    createslack!(m, cs, s)
 end
 
 function loadslack!(m::SOItoMOIBridge, c::Integer)
@@ -40,27 +40,40 @@ end
 _row(f::SAF, i) = 1
 _row(f::VAF, i) = f.outputindex[i]
 
-function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange, f::AF)
+_getconstant(m::SOItoMOIBridge, s::MOI.AbstractScalarSet) = MOIU.getconstant(s)
+_getconstant(m::SOItoMOIBridge, s::MOI.AbstractSet) = 0.0
+
+function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange, f::VF, s) end
+function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange, f::AF, s)
     if !isempty(cs)
-        for j in 1:nconstraints(f)
-            c = cs[j]
-            setconstraintconstant!(m.sdsolver, -f.constant[j], c)
-        end
+        rhs = _getconstant(m, s) - f.constant
         for i in 1:length(f.variables)
             val = f.coefficients[i]
             if !iszero(val)
-                c = cs[_row(f, i)]
-                for (blk, i, j, coef) in m.varmap[f.variables[i].value]
-                    @assert coef != 0
-                    setconstraintcoefficient!(m.sdsolver, val*coef, c, blk, i, j)
+                row = _row(f, i)
+                c = cs[row]
+                for (blk, i, j, coef, shift) in m.varmap[f.variables[i].value]
+                    if !iszero(blk)
+                        @assert !iszero(coef)
+                        setconstraintcoefficient!(m.sdsolver, val*coef, c, blk, i, j)
+                    end
+                    if isa(rhs, Vector)
+                        rhs[row] -= coef * shift
+                    else
+                        rhs -= coef * shift
+                    end
                 end
             end
+        end
+        for j in 1:nconstraints(f)
+            c = cs[j]
+            setconstraintconstant!(m.sdsolver, rhs[j], c)
         end
     end
 end
 
-function loadconstraint!{S}(m::SOItoMOIBridge, ci::UInt64, af::AF, ::Type{S})
-    cs = m.constrmap[ci]
+function loadconstraint!(m::SOItoMOIBridge, cr::CR, af::AF, s)
+    cs = m.constrmap[cr.value]
     loadslacks!(m, cs)
-    loadcoefficients!(m, cs, af)
+    loadcoefficients!(m, cs, af, s)
 end
