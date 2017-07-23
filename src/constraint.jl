@@ -82,7 +82,7 @@ function loadconstraint!(m::SOItoMOIBridge, cr::CR, f::VF, s::ZS)
         @assert length(vm) == 1
         (blk, i, j, coef, shift) = first(vm)
         @assert coef == 1.0
-        @assert shift == s.value
+        @assert s isa MOI.Zeros || shift == s.value
         c = cs[j]
         setconstraintcoefficient!(m.sdsolver, 1.0, c, blk, i, j)
         setconstraintconstant!(m.sdsolver, 0.0, c)

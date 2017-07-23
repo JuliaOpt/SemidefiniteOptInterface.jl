@@ -48,7 +48,8 @@ nconstraints(c::Tuple) = nconstraints(c...)
 nconstraints(cs::Vector) = sum(nconstraints.(cs))
 
 nconstraints{F<:SAF, S}(cs::Vector{MOIU.C{F, S}}) = length(cs)
-nconstraints{F<:VVF, S}(cs::Vector{MOIU.C{F, S}}) = 0
+nconstraints{F<:SVF, S<:ZS}(cs::Vector{MOIU.C{F, S}}) = length(cs)
+nconstraints{F<:SVF, S}(cs::Vector{MOIU.C{F, S}}) = 0
 
 function init!(m::SOItoMOIBridge)
     m.nconstrs = sum(MOIU.broadcastvcat(nconstraints, m.sdinstance))
