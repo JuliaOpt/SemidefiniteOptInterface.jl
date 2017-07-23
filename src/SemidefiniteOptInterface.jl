@@ -179,6 +179,9 @@ function getvardual(m::SOItoMOIBridge, vi::UInt64)
 end
 getvardual(m::SOItoMOIBridge, f::SVF) = getvardual(m, f.variable.value)
 getvardual(m::SOItoMOIBridge, f::VVF) = map(vr -> getvardual(m, vr.value), f.variables)
+function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR{<:VF, <:ZS})
+    _getattribute(m, cr, getdual) + getvardual(m, MOI.getattribute(m, MOI.ConstraintFunction(), cr))
+end
 function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR{<:VF})
     getvardual(m, MOI.getattribute(m, MOI.ConstraintFunction(), cr))
 end

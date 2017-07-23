@@ -6,9 +6,10 @@ function newblock(m::SOItoMOIBridge, n)
 end
 
 function loadvariable!(m::SOItoMOIBridge, vs::VIS, s::ZS)
-    for vi in vs
-        m.varmap[vi] = [(0, 0, 0, 0.0, _getconstant(m, s))]
-        pop!(m.free, vi)
+    blk = newblock(m, -length(vs))
+    for (i, v) in enumerate(vs)
+        m.varmap[v] = [(blk, i, i, 1.0, _getconstant(m, s))]
+        pop!(m.free, v)
     end
 end
 vscaling(::Type{<:NS}) = 1.

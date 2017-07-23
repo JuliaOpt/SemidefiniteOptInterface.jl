@@ -73,6 +73,21 @@ function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange, f::AF, s)
     end
 end
 
+_var(f::SVF, j) = f.variable
+_var(f::VVF, j) = f.variables[j]
+function loadconstraint!(m::SOItoMOIBridge, cr::CR, f::VF, s::ZS)
+    cs = m.constrmap[cr.value]
+    for j in length(cs)
+        vm = m.varmap[_var(f, j).value]
+        @assert length(vm) == 1
+        (blk, i, j, coef, shift) = first(vm)
+        @assert coef == 1.0
+        @assert shift == s.value
+        c = cs[j]
+        setconstraintcoefficient!(m.sdsolver, 1.0, c, blk, i, j)
+        setconstraintconstant!(m.sdsolver, 0.0, c)
+    end
+end
 function loadconstraint!(m::SOItoMOIBridge, cr::CR, af::VF, s) end
 function loadconstraint!(m::SOItoMOIBridge, cr::CR, af::AF, s)
     cs = m.constrmap[cr.value]

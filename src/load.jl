@@ -36,8 +36,8 @@ function loadobjective!(m::SOItoMOIBridge)
     end
 end
 
-#nconstraints(f::SVF, s::MOI.EqualTo) = 1
-#nconstraints(f::VVF, s::MOI.EqualTo) = length(f.variables)
+nconstraints(f::SVF, s::MOI.EqualTo) = 1
+nconstraints(f::VVF, s::MOI.Zeros) = length(f.variables)
 nconstraints(f::VF, s) = 0
 nconstraints(f::VAF, s) = length(f.constant)
 nconstraints(f::SAF, s) = 1
