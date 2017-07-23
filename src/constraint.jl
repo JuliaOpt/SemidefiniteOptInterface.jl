@@ -19,6 +19,8 @@ function createslack!(m::SOItoMOIBridge, cs, ::DS)
     end
 end
 
+function createslack!(m::SOItoMOIBridge, cr::CR, constr::VF, s) end
+
 function createslack!(m::SOItoMOIBridge, cr::CR, constr::AF, s)
     cs = m.constrmap[cr.value]
     createslack!(m, cs, s)
@@ -43,7 +45,6 @@ _row(f::VAF, i) = f.outputindex[i]
 _getconstant(m::SOItoMOIBridge, s::MOI.AbstractScalarSet) = MOIU.getconstant(s)
 _getconstant(m::SOItoMOIBridge, s::MOI.AbstractSet) = 0.0
 
-function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange, f::VF, s) end
 function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange, f::AF, s)
     if !isempty(cs)
         rhs = _getconstant(m, s) - f.constant
@@ -65,13 +66,14 @@ function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange, f::AF, s)
                 end
             end
         end
-        for j in 1:nconstraints(f)
+        for j in 1:length(f.constant)
             c = cs[j]
             setconstraintconstant!(m.sdsolver, rhs[j], c)
         end
     end
 end
 
+function loadconstraint!(m::SOItoMOIBridge, cr::CR, af::VF, s) end
 function loadconstraint!(m::SOItoMOIBridge, cr::CR, af::AF, s)
     cs = m.constrmap[cr.value]
     loadslacks!(m, cs)

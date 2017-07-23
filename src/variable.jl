@@ -48,6 +48,8 @@ function loadvariable!(m::SOItoMOIBridge, cr, constr::VVF, s)
     loadvariable!(m, map(v -> v.value, constr.variables), s)
 end
 
+function loadvariable!(m::SOItoMOIBridge, cr, constr::AF, s) end
+
 function loadfreevariables!(m::SOItoMOIBridge)
     for vi in m.free
         blk = newblock(m, -2)

@@ -5,7 +5,7 @@ const MOI = MathOptInterface
 
 using MathOptInterfaceUtilities
 const MOIU = MathOptInterfaceUtilities
-MOIU.@instance SDInstance () (EqualTo, GreaterThan, LessThan) (Zeros, Nonnegatives, Nonpositives, PositiveSemidefiniteConeTriangle) ()
+MOIU.@instance SDInstance () (EqualTo, GreaterThan, LessThan) (Zeros, Nonnegatives, Nonpositives, PositiveSemidefiniteConeTriangle) () (SingleVariable,) (ScalarAffineFunction,) (VectorOfVariables,) (VectorAffineFunction,)
 
 abstract type AbstractSDSolver <: MOI.AbstractSolver end
 

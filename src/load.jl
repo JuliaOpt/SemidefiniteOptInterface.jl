@@ -2,7 +2,7 @@ include("variable.jl")
 include("constraint.jl")
 
 function numberconstraint!(m::SOItoMOIBridge, cr, f, s)
-    n = nconstraints(f)
+    n = nconstraints(f, s)
     m.constrmap[cr.value] = m.constr + (1:n)
     m.constr += n
 end
@@ -15,18 +15,6 @@ for f in (:loadvariable, :loadconstraint, :createslack, :numberconstraint)
             for constr in constrs
                 $fun(m, constr...)
             end
-        end
-
-        function $funs(m::SOItoMOIBridge, cs::SDInstanceScalarConstraints)
-            $funs(m, cs.equalto)
-            $funs(m, cs.greaterthan)
-            $funs(m, cs.lessthan)
-        end
-        function $funs(m::SOItoMOIBridge, cs::SDInstanceVectorConstraints)
-            $funs(m, cs.zeros)
-            $funs(m, cs.nonnegatives)
-            $funs(m, cs.nonpositives)
-            $funs(m, cs.positivesemidefiniteconetriangle)
         end
     end
 end
@@ -48,34 +36,22 @@ function loadobjective!(m::SOItoMOIBridge)
     end
 end
 
-nconstraints(f::VAF) = length(f.constant)
-nconstraints(f::SAF) = 1
+#nconstraints(f::SVF, s::MOI.EqualTo) = 1
+#nconstraints(f::VVF, s::MOI.EqualTo) = length(f.variables)
+nconstraints(f::VF, s) = 0
+nconstraints(f::VAF, s) = length(f.constant)
+nconstraints(f::SAF, s) = 1
 
-nconstraints(cr::CR, f::MOI.AbstractFunction, s::MOI.AbstractSet) = nconstraints(f)
+nconstraints(cr::CR, f::MOI.AbstractFunction, s::MOI.AbstractSet) = nconstraints(f, s)
 nconstraints(c::Tuple) = nconstraints(c...)
 
-#nconstraints(cs::Vector) = sum(nconstraints.(cs))
-function nconstraints(cs::Vector)
-    s = 0
-    for c in cs
-        s += nconstraints(c)
-    end
-    s
-end
+nconstraints(cs::Vector) = sum(nconstraints.(cs))
 
 nconstraints{F<:SAF, S}(cs::Vector{MOIU.C{F, S}}) = length(cs)
 nconstraints{F<:VVF, S}(cs::Vector{MOIU.C{F, S}}) = 0
 
-function nconstraints(cs::SDInstanceScalarConstraints)
-    nconstraints(cs.equalto) + nconstraints(cs.greaterthan) + nconstraints(cs.lessthan)
-end
-function nconstraints(cs::SDInstanceVectorConstraints)
-    nconstraints(cs.zeros) + nconstraints(cs.nonnegatives) + nconstraints(cs.nonpositives) + nconstraints(cs.positivesemidefiniteconetriangle)
-end
-
-
 function init!(m::SOItoMOIBridge)
-    m.nconstrs = nconstraints(m.sdinstance.sa) + nconstraints(m.sdinstance.va)
+    m.nconstrs = sum(MOIU.broadcastvcat(nconstraints, m.sdinstance))
     m.objshift = 0.0
     m.constr = 0
     m.nblocks = 0
@@ -86,17 +62,15 @@ function init!(m::SOItoMOIBridge)
     m.slackmap = Vector{Tuple{Int, Int, Int, Float64}}(m.nconstrs)
 end
 
+_broadcastcall(f, m) = MOIU.broadcastcall(constrs -> f(m, constrs), m.sdinstance)
+
 function loadprimal!(m::SOItoMOIBridge)
     init!(m)
-    loadvariables!(m, m.sdinstance.sv)
-    loadvariables!(m, m.sdinstance.vv)
+    _broadcastcall(loadvariables!, m)
     loadfreevariables!(m)
-    numberconstraints!(m, m.sdinstance.sa)
-    numberconstraints!(m, m.sdinstance.va)
-    createslacks!(m, m.sdinstance.sa)
-    createslacks!(m, m.sdinstance.va)
+    _broadcastcall(numberconstraints!, m)
+    _broadcastcall(createslacks!, m)
     initinstance!(m.sdsolver, m.blockdims, m.nconstrs)
-    loadconstraints!(m, m.sdinstance.sa)
-    loadconstraints!(m, m.sdinstance.va)
+    _broadcastcall(loadconstraints!, m)
     loadobjective!(m)
 end
