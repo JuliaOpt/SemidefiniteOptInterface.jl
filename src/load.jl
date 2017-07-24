@@ -7,11 +7,17 @@ function numberconstraint!(m::SOItoMOIBridge, cr, f, s)
     m.constr += n
 end
 
-for f in (:loadvariable, :loadconstraint, :createslack, :numberconstraint)
+function bridgeconstraint!(m, cr, f, s::MOI.SecondOrderCone)
+    push!(m.soc, SOCtoPSDCBridge(m, f, s))
+    m.bridgemap[cr.value] = length(m.soc)
+end
+
+for (f, SS) in ((:loadvariable, :SupportedSets), (:loadconstraint, :SupportedSets), (:createslack, :SupportedSets), (:numberconstraint, :SupportedSets), (:bridgeconstraint, :BridgedSets))
     funs = Symbol(string(f) * "s!")
     fun = Symbol(string(f) * "!")
     @eval begin
-        function $funs(m::SOItoMOIBridge, constrs::Vector)
+        function $funs(m::SOItoMOIBridge, constrs::Vector) end
+        function $funs{F, S<:$SS}(m::SOItoMOIBridge, constrs::Vector{MOIU.C{F, S}})
             for constr in constrs
                 $fun(m, constr...)
             end
@@ -47,9 +53,18 @@ nconstraints(c::Tuple) = nconstraints(c...)
 
 nconstraints(cs::Vector) = sum(nconstraints.(cs))
 
-nconstraints{F<:SAF, S}(cs::Vector{MOIU.C{F, S}}) = length(cs)
+nconstraints{F<:SAF, S<:SupportedSets}(cs::Vector{MOIU.C{F, S}}) = length(cs)
 nconstraints{F<:SVF, S<:ZS}(cs::Vector{MOIU.C{F, S}}) = length(cs)
-nconstraints{F<:SVF, S}(cs::Vector{MOIU.C{F, S}}) = 0
+nconstraints{F<:SVF, S<:SupportedSets}(cs::Vector{MOIU.C{F, S}}) = 0
+nconstraints{F, S<:BridgedSets}(cs::Vector{MOIU.C{F, S}}) = 0
+
+function resetbridges!(m)
+    for s in m.soc
+        MOI.delete!(m, s)
+    end
+    m.bridgemap = Vector{Int}(m.sdinstance.nconstrs)
+    m.soc = SOCtoPSDCBridge{Float64}[]
+end
 
 function init!(m::SOItoMOIBridge)
     m.nconstrs = sum(MOIU.broadcastvcat(nconstraints, m.sdinstance))
@@ -61,11 +76,14 @@ function init!(m::SOItoMOIBridge)
     m.varmap = Vector{Vector{Tuple{Int,Int,Int,Float64,Float64}}}(m.sdinstance.nvars)
     m.constrmap = Vector{UnitRange{Int}}(m.sdinstance.nconstrs)
     m.slackmap = Vector{Tuple{Int, Int, Int, Float64}}(m.nconstrs)
+    m.slackmap = Vector{Tuple{Int, Int, Int, Float64}}(m.nconstrs)
 end
 
 _broadcastcall(f, m) = MOIU.broadcastcall(constrs -> f(m, constrs), m.sdinstance)
 
 function loadprimal!(m::SOItoMOIBridge)
+    resetbridges!(m)
+    _broadcastcall(bridgeconstraints!, m)
     init!(m)
     _broadcastcall(loadvariables!, m)
     loadfreevariables!(m)

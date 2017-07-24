@@ -5,7 +5,7 @@ const MOI = MathOptInterface
 
 using MathOptInterfaceUtilities
 const MOIU = MathOptInterfaceUtilities
-MOIU.@instance SDInstance () (EqualTo, GreaterThan, LessThan) (Zeros, Nonnegatives, Nonpositives, PositiveSemidefiniteConeTriangle) () (SingleVariable,) (ScalarAffineFunction,) (VectorOfVariables,) (VectorAffineFunction,)
+MOIU.@instance SDInstance () (EqualTo, GreaterThan, LessThan) (Zeros, Nonnegatives, Nonpositives, SecondOrderCone, PositiveSemidefiniteConeTriangle) () (SingleVariable,) (ScalarAffineFunction,) (VectorOfVariables,) (VectorAffineFunction,)
 
 abstract type AbstractSDSolver <: MOI.AbstractSolver end
 
@@ -27,9 +27,15 @@ const AVF{T} = Union{VVF, VAF{T}}
 const ZS = Union{MOI.EqualTo, MOI.Zeros}
 const NS = Union{MOI.GreaterThan, MOI.Nonnegatives}
 const PS = Union{MOI.LessThan, MOI.Nonpositives}
+const SO = MOI.SecondOrderCone
 const DS = MOI.PositiveSemidefiniteConeTriangle
+const SupportedSets = Union{ZS, NS, PS, DS}
+const BridgedSets = Union{SO}
 
+const VR = MOI.VariableReference
 const CR{FT, ST} = MOI.ConstraintReference{FT, ST}
+
+include("setbridges.jl")
 
 mutable struct SOItoMOIBridge{ST <: AbstractSDSolver, SIT <: AbstractSDSolverInstance} <: MOI.AbstractSolverInstance
     solver::ST
@@ -44,6 +50,9 @@ mutable struct SOItoMOIBridge{ST <: AbstractSDSolver, SIT <: AbstractSDSolverIns
     varmap::Vector{Vector{Tuple{Int, Int, Int, Float64, Float64}}} # Variable Reference value vi -> blk, i, j, coef, shift # x = sum coef * (X[blk][i, j] + shift)
     constrmap::Vector{UnitRange{Int}} # Constraint Reference value ci -> cs
     slackmap::Vector{Tuple{Int, Int, Int, Float64}} # c -> blk, i, j, coef
+    # Bridges
+    bridgemap::Vector{Int}
+    soc::Vector{SOCtoPSDCBridge{Float64}}
     function SOItoMOIBridge(solver::ST, sdsolver::SIT) where {ST, SIT}
         new{ST, SIT}(solver, SDInstance{Float64}(), sdsolver,
             0.0, 0, 0, 0,
@@ -51,7 +60,9 @@ mutable struct SOItoMOIBridge{ST <: AbstractSDSolver, SIT <: AbstractSDSolverIns
             IntSet(),
             Vector{Tuple{Int,Int,Int,Float64}}[],
             UnitRange{Int}[],
-            Tuple{Int, Int, Int, Float64}[])
+            Tuple{Int, Int, Int, Float64}[],
+            Int[],
+            SOCtoPSDCBridge{Float64}[])
     end
     function SOItoMOIBridge(solver::ST) where ST
         SOItoMOIBridge(solver, SDSolverInstance(solver))
@@ -62,10 +73,8 @@ MOI.SolverInstance(s::AbstractSDSolver) = SOItoMOIBridge(s)
 
 MOI.supportsproblem(m::AbstractSDSolver, ::Type{<:MOI.AbstractFunction}, constrtypes) = false
 
-function _supports(x::DataType, y::DataType)
-    false
-end
-function _supports{FT<:Union{VF, AF}, ST<:Union{ZS, NS, PS, DS}}(::Type{FT}, ::Type{ST})
+_supports(x::Type, y::Type) = false
+function _supports(::Type{<:Union{VF, AF}}, ::Type{<:Union{SupportedSets, BridgedSets}})
     true
 end
 MOI.supportsproblem(m::AbstractSDSolver, ::Type{<:SAF}, constrtypes) = reduce((b, ct) -> b & _supports(ct...), true, constrtypes)
@@ -79,7 +88,7 @@ MOI.addvariables!(m::SOItoMOIBridge, n::Integer) = MOI.addvariables!(m.sdinstanc
 
 # Constraints
 
-MOI.delete!(m::SOItoMOIBridge, cr::CR) = MOI.delete!(m.sdinstance, cr)
+MOI.delete!(m::SOItoMOIBridge, r::Union{MOI.VariableReference, CR}) = MOI.delete!(m.sdinstance, r)
 MOI.addconstraint!(m::SOItoMOIBridge, f, s) = MOI.addconstraint!(m.sdinstance, f, s)
 
 const InstanceAttributeRef = Union{MOI.ConstraintFunction, MOI.ConstraintSet}
@@ -182,7 +191,7 @@ getvardual(m::SOItoMOIBridge, f::VVF) = map(vr -> getvardual(m, vr.value), f.var
 function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR{<:VF, <:ZS})
     _getattribute(m, cr, getdual) + getvardual(m, MOI.getattribute(m, MOI.ConstraintFunction(), cr))
 end
-function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR{<:VF})
+function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR{<:VF, <:SupportedSets})
     getvardual(m, MOI.getattribute(m, MOI.ConstraintFunction(), cr))
 end
 
@@ -195,6 +204,13 @@ function getdual(m::SOItoMOIBridge, c::Int)
 end
 function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR)
     _getattribute(m, cr, getdual)
+end
+
+function MOI.getattribute{F}(m::SOItoMOIBridge, a::MOI.ConstraintDual, cr::CR{F, MOI.SecondOrderCone})
+    MOI.getattribute(m, a, m.soc[m.bridgemap[cr.value]])
+end
+function MOI.getattribute{F}(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR{F, MOI.SecondOrderCone})
+    MOI.getattribute(m, a, m.soc[m.bridgemap[cr.value]])
 end
 
 end # module

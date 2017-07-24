@@ -88,8 +88,8 @@ function loadconstraint!(m::SOItoMOIBridge, cr::CR, f::VF, s::ZS)
         setconstraintconstant!(m.sdsolver, 0.0, c)
     end
 end
-function loadconstraint!(m::SOItoMOIBridge, cr::CR, af::VF, s) end
-function loadconstraint!(m::SOItoMOIBridge, cr::CR, af::AF, s)
+function loadconstraint!(m::SOItoMOIBridge, cr::CR, f::VF, s) end
+function loadconstraint!(m::SOItoMOIBridge, cr::CR, af::AF, s::SupportedSets)
     cs = m.constrmap[cr.value]
     loadslacks!(m, cs)
     loadcoefficients!(m, cs, af, s)

@@ -29,6 +29,7 @@ function getmatdim(k::Integer)
     if n * (n+1) != 2*k
         error("sd dim not consistent")
     end
+    n
 end
 function loadvariable!(m::SOItoMOIBridge, vs::VIS, ::DS)
     d = getmatdim(length(vs))
