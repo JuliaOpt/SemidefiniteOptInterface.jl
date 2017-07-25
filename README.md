@@ -15,6 +15,8 @@ The well known [SDPA file format](http://plato.asu.edu/ftp/sdpa_format.txt) uses
 
 [build-img]: https://travis-ci.org/JuliaOpt/SemidefiniteOptInterface.jl.svg?branch=master
 [build-url]: https://travis-ci.org/JuliaOpt/SemidefiniteOptInterface.jl
+[winbuild-img]: https://ci.appveyor.com/api/projects/status/r92anpmqeo30rppe/branch/master?svg=true
+[winbuild-url]: https://ci.appveyor.com/project/JuliaOpt/semidefiniteoptinterface-jl/branch/master
 [coveralls-img]: https://coveralls.io/repos/github/JuliaOpt/SemidefiniteOptInterface.jl/badge.svg?branch=master
 [coveralls-url]: https://coveralls.io/github/JuliaOpt/SemidefiniteOptInterface.jl?branch=master
 [codecov-img]: http://codecov.io/github/JuliaOpt/SemidefiniteOptInterface.jl/coverage.svg?branch=master
