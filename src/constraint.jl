@@ -59,9 +59,9 @@ function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange, f::AF, s)
                         setconstraintcoefficient!(m.sdsolver, val*coef, c, blk, i, j)
                     end
                     if isa(rhs, Vector)
-                        rhs[row] -= coef * shift
+                        rhs[row] -= shift
                     else
-                        rhs -= coef * shift
+                        rhs -= shift
                     end
                 end
             end

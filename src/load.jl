@@ -36,7 +36,7 @@ function loadobjective!(m::SOItoMOIBridge)
                     # in SDP format, it is max and in MPB Conic format it is min
                     setobjectivecoefficient!(m.sdsolver, sgn * coef * val, blk, i, j)
                 end
-                m.objshift += coef * val * shift
+                m.objshift += val * shift
             end
         end
     end

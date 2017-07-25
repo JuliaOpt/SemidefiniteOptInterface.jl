@@ -47,7 +47,7 @@ mutable struct SOItoMOIBridge{ST <: AbstractSDSolver, SIT <: AbstractSDSolverIns
     nblocks::Int
     blockdims::Vector{Int}
     free::IntSet
-    varmap::Vector{Vector{Tuple{Int, Int, Int, Float64, Float64}}} # Variable Reference value vi -> blk, i, j, coef, shift # x = sum coef * (X[blk][i, j] + shift)
+    varmap::Vector{Vector{Tuple{Int, Int, Int, Float64, Float64}}} # Variable Reference value vi -> blk, i, j, coef, shift # x = sum coef * X[blk][i, j] + shift
     constrmap::Vector{UnitRange{Int}} # Constraint Reference value ci -> cs
     slackmap::Vector{Tuple{Int, Int, Int, Float64}} # c -> blk, i, j, coef
     # Bridges
@@ -142,7 +142,7 @@ function MOI.getattribute(m::SOItoMOIBridge, ::MOI.VariablePrimal, vr::MOI.Varia
     X = getX(m.sdsolver)
     x = 0.0
     for (blk, i, j, coef, shift) in m.varmap[vr.value]
-        x += shift * coef
+        x += shift
         if blk != 0
             x += X[blk][i, j] * coef
         end
