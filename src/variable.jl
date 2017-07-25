@@ -38,7 +38,7 @@ function loadvariable!(m::SOItoMOIBridge, vs::VIS, ::DS)
     for i in 1:d
         for j in i:d
             k += 1
-            m.varmap[vs[k]] = [(blk, i, j, 1.0, 0.0)]
+            m.varmap[vs[k]] = [(blk, i, j, i == j ? 1.0 : 0.5, 0.0)]
             pop!(m.free, vs[k])
         end
     end

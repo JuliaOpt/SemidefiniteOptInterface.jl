@@ -144,7 +144,7 @@ function MOI.getattribute(m::SOItoMOIBridge, ::MOI.VariablePrimal, vr::MOI.Varia
     for (blk, i, j, coef, shift) in m.varmap[vr.value]
         x += shift
         if blk != 0
-            x += X[blk][i, j] * coef
+            x += X[blk][i, j] * sign(coef)
         end
     end
     x
@@ -168,7 +168,7 @@ function getslack(m::SOItoMOIBridge, c::Int)
     if iszero(blk)
         0.0
     else
-        X[blk][i, j] * coef
+        X[blk][i, j]
     end
 end
 
@@ -181,7 +181,7 @@ function getvardual(m::SOItoMOIBridge, vi::UInt64)
     z = 0.
     for (blk, i, j, coef) in m.varmap[vi]
         if blk != 0
-            z += Z[blk][i, j] / coef
+            z += Z[blk][i, j] * sign(coef)
         end
     end
     z
