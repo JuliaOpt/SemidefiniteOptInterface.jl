@@ -46,6 +46,7 @@ _getconstant(m::SOItoMOIBridge, s::MOI.AbstractScalarSet) = MOIU.getconstant(s)
 _getconstant(m::SOItoMOIBridge, s::MOI.AbstractSet) = 0.0
 
 function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange, f::AF, s)
+    f = MOIU.canonical(f) # sum terms with same variables and same outputindex
     if !isempty(cs)
         rhs = _getconstant(m, s) - f.constant
         for i in 1:length(f.variables)

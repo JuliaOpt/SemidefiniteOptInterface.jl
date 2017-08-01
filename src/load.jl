@@ -26,7 +26,7 @@ for (f, SS) in ((:loadvariable, :SupportedSets), (:loadconstraint, :SupportedSet
 end
 
 function loadobjective!(m::SOItoMOIBridge)
-    obj = m.sdinstance.objective
+    obj = MOIU.canonical(m.sdinstance.objective)
     sgn = _objsgn(m)
     for (vr, val) in zip(obj.variables, obj.coefficients)
         vi = vr.value
