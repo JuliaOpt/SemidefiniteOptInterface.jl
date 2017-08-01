@@ -88,12 +88,12 @@ MOI.addvariables!(m::SOItoMOIBridge, n::Integer) = MOI.addvariables!(m.sdinstanc
 
 # Constraints
 
-MOI.delete!(m::SOItoMOIBridge, r::Union{MOI.VariableReference, CR}) = MOI.delete!(m.sdinstance, r)
+MOI.delete!(m::SOItoMOIBridge, r::Union{VR, CR}) = MOI.delete!(m.sdinstance, r)
 MOI.addconstraint!(m::SOItoMOIBridge, f, s) = MOI.addconstraint!(m.sdinstance, f, s)
 
 const InstanceAttributeRef = Union{MOI.ConstraintFunction, MOI.ConstraintSet}
-MOI.cangetattribute(m::SOItoMOIBridge, a::InstanceAttributeRef, ref) = MOI.cangetattribute(m.sdinstance, a, ref)
-MOI.getattribute(m::SOItoMOIBridge, a::InstanceAttributeRef, ref) = MOI.getattribute(m.sdinstance, a, ref)
+MOI.cangetattribute(m::SOItoMOIBridge, a::InstanceAttributeRef, ref::CR) = MOI.cangetattribute(m.sdinstance, a, ref)
+MOI.getattribute(m::SOItoMOIBridge, a::InstanceAttributeRef, ref::CR) = MOI.getattribute(m.sdinstance, a, ref)
 
 const InstanceAttribute = Union{MOI.NumberOfVariables,
                                 MOI.NumberOfConstraints,
@@ -136,9 +136,13 @@ MOI.getattribute(m::SOItoMOIBridge, s::SolverStatus) = MOI.getattribute(m.sdsolv
 
 MOI.cangetattribute(m::SOItoMOIBridge, ::Union{MOI.VariablePrimal,
                                                MOI.ConstraintPrimal,
-                                               MOI.ConstraintDual}, ref) = true
+                                               MOI.ConstraintDual}, ref::Union{CR, VR}) = true
 
-function MOI.getattribute(m::SOItoMOIBridge, ::MOI.VariablePrimal, vr::MOI.VariableReference)
+MOI.cangetattribute(m::SOItoMOIBridge, ::Union{MOI.VariablePrimal,
+                                               MOI.ConstraintPrimal,
+                                               MOI.ConstraintDual}, ref::Vector{R}) where R <: Union{CR, VR} = true
+
+function MOI.getattribute(m::SOItoMOIBridge, ::MOI.VariablePrimal, vr::VR)
     X = getX(m.sdsolver)
     x = 0.0
     for (blk, i, j, coef, shift) in m.varmap[vr.value]
@@ -149,7 +153,7 @@ function MOI.getattribute(m::SOItoMOIBridge, ::MOI.VariablePrimal, vr::MOI.Varia
     end
     x
 end
-function MOI.getattribute(m::SOItoMOIBridge, vp::MOI.VariablePrimal, vr::Vector{MOI.VariableReference})
+function MOI.getattribute(m::SOItoMOIBridge, vp::MOI.VariablePrimal, vr::Vector{VR})
     MOI.getattribute.(m, vp, vr)
 end
 
