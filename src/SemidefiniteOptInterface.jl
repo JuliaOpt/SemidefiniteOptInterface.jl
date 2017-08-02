@@ -99,7 +99,7 @@ const InstanceAttribute = Union{MOI.NumberOfVariables,
                                 MOI.NumberOfConstraints,
                                 MOI.ListOfConstraints,
                                 MOI.ObjectiveFunction,
-                                MOI.Sense}
+                                MOI.ObjectiveSense}
 MOI.cangetattribute(m::SOItoMOIBridge, a::InstanceAttribute) = MOI.cangetattribute(m.sdinstance, a)
 
 function MOI.getattribute(m::SOItoMOIBridge, a::InstanceAttribute)
