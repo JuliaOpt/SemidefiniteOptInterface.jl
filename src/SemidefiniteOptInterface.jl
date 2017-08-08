@@ -9,7 +9,11 @@ MOIU.@instance SDInstance () (EqualTo, GreaterThan, LessThan) (Zeros, Nonnegativ
 
 abstract type AbstractSDSolver <: MOI.AbstractSolver end
 
-MOI.getattribute(m::AbstractSDSolver, ::MOI.SupportsDuals) = true
+MOI.getattribute(m::AbstractSDSolver, ::Union{MOI.SupportsDuals,
+                                              MOI.SupportsAddVariableAfterSolve,
+                                              MOI.SupportsAddConstraintAfterSolve,
+                                              MOI.SupportsDeleteVariable,
+                                              MOI.SupportsDeleteConstraint}) = true
 
 abstract type AbstractSDSolverInstance <: MOI.AbstractSolverInstance end
 
@@ -134,6 +138,9 @@ MOI.cangetattribute(m::SOItoMOIBridge, s::SolverStatus) = MOI.cangetattribute(m.
 MOI.getattribute(m::SOItoMOIBridge, s::SolverStatus) = MOI.getattribute(m.sdsolver, s)
 
 
+MOI.cangetattribute(m::SOItoMOIBridge, ::MOI.ResultCount) = true
+MOI.getattribute(m::SOItoMOIBridge, ::MOI.ResultCount) = 1
+
 MOI.cangetattribute(m::SOItoMOIBridge, ::Union{MOI.VariablePrimal,
                                                MOI.ConstraintPrimal,
                                                MOI.ConstraintDual}, ref::Union{CR, VR}) = true
@@ -141,6 +148,7 @@ MOI.cangetattribute(m::SOItoMOIBridge, ::Union{MOI.VariablePrimal,
 MOI.cangetattribute(m::SOItoMOIBridge, ::Union{MOI.VariablePrimal,
                                                MOI.ConstraintPrimal,
                                                MOI.ConstraintDual}, ref::Vector{R}) where R <: Union{CR, VR} = true
+
 
 function MOI.getattribute(m::SOItoMOIBridge, ::MOI.VariablePrimal, vr::VR)
     X = getX(m.sdsolver)
