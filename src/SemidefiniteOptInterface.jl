@@ -5,7 +5,7 @@ const MOI = MathOptInterface
 
 using MathOptInterfaceUtilities
 const MOIU = MathOptInterfaceUtilities
-MOIU.@instance SDInstance () (EqualTo, GreaterThan, LessThan, Interval) (Zeros, Nonnegatives, Nonpositives, SecondOrderCone, PositiveSemidefiniteConeTriangle) () (SingleVariable,) (ScalarAffineFunction,) (VectorOfVariables,) (VectorAffineFunction,)
+MOIU.@instance SDInstance () (EqualTo, GreaterThan, LessThan, Interval) (Zeros, Nonnegatives, Nonpositives, SecondOrderCone, RotatedSecondOrderCone, PositiveSemidefiniteConeTriangle, PositiveSemidefiniteConeScaled) () (SingleVariable,) (ScalarAffineFunction,) (VectorOfVariables,) (VectorAffineFunction,)
 
 abstract type AbstractSDSolver <: MOI.AbstractSolver end
 
@@ -32,10 +32,12 @@ const ZS = Union{MOI.EqualTo, MOI.Zeros}
 const NS = Union{MOI.GreaterThan, MOI.Nonnegatives}
 const PS = Union{MOI.LessThan, MOI.Nonpositives}
 const IL = MOI.Interval
+const CS = MOI.PositiveSemidefiniteConeScaled
 const SO = MOI.SecondOrderCone
+const RS = MOI.RotatedSecondOrderCone
 const DS = MOI.PositiveSemidefiniteConeTriangle
 const SupportedSets = Union{ZS, NS, PS, DS}
-const BridgedSets = Union{IL, SO}
+const BridgedSets = Union{IL, CS, SO, RS}
 
 const VR = MOI.VariableReference
 const CR{FT, ST} = MOI.ConstraintReference{FT, ST}
@@ -57,8 +59,10 @@ mutable struct SOItoMOIBridge{ST <: AbstractSDSolver, SIT <: AbstractSDSolverIns
     slackmap::Vector{Tuple{Int, Int, Int, Float64}} # c -> blk, i, j, coef
     # Bridges
     bridgemap::Vector{Int}
-    soc::Vector{SOCtoPSDCBridge{Float64}}
     int::Vector{SplitIntervalBridge{Float64}}
+    psdcs::Vector{PSDCScaledBridge{Float64}}
+    soc::Vector{SOCtoPSDCBridge{Float64}}
+    rsoc::Vector{RSOCtoPSDCBridge{Float64}}
     function SOItoMOIBridge(solver::ST, sdsolver::SIT) where {ST, SIT}
         new{ST, SIT}(solver, SDInstance{Float64}(), sdsolver,
             0.0, 0, 0, 0,
@@ -68,8 +72,10 @@ mutable struct SOItoMOIBridge{ST <: AbstractSDSolver, SIT <: AbstractSDSolverIns
             UnitRange{Int}[],
             Tuple{Int, Int, Int, Float64}[],
             Int[],
+            SplitIntervalBridge{Float64}[],
+            PSDCScaledBridge{Float64}[],
             SOCtoPSDCBridge{Float64}[],
-            SplitIntervalBridge{Float64}[])
+            RSOCtoPSDCBridge{Float64}[])
     end
     function SOItoMOIBridge(solver::ST) where ST
         SOItoMOIBridge(solver, SDSolverInstance(solver))
@@ -220,8 +226,25 @@ end
 function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR)
     _getattribute(m, cr, getdual)
 end
+function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR{F, DS}) where F
+    scalevec!(_getattribute(m, cr, getdual), 1/2)
+end
 
 # Bridges
+
+function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintDual, cr::CR{F, IL{Float64}}) where F
+    MOI.getattribute(m, a, m.int[m.bridgemap[cr.value]])
+end
+function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR{F, IL{Float64}}) where F
+    MOI.getattribute(m, a, m.int[m.bridgemap[cr.value]])
+end
+
+function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintDual, cr::CR{F, CS}) where F
+    MOI.getattribute(m, a, m.psdcs[m.bridgemap[cr.value]])
+end
+function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR{F, CS}) where F
+    MOI.getattribute(m, a, m.psdcs[m.bridgemap[cr.value]])
+end
 
 function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintDual, cr::CR{F, SO}) where F
     MOI.getattribute(m, a, m.soc[m.bridgemap[cr.value]])
@@ -230,11 +253,11 @@ function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR{F, 
     MOI.getattribute(m, a, m.soc[m.bridgemap[cr.value]])
 end
 
-function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintDual, cr::CR{F, IL{Float64}}) where F
-    MOI.getattribute(m, a, m.int[m.bridgemap[cr.value]])
+function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintDual, cr::CR{F, RS}) where F
+    MOI.getattribute(m, a, m.rsoc[m.bridgemap[cr.value]])
 end
-function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR{F, IL{Float64}}) where F
-    MOI.getattribute(m, a, m.int[m.bridgemap[cr.value]])
+function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR{F, RS}) where F
+    MOI.getattribute(m, a, m.rsoc[m.bridgemap[cr.value]])
 end
 
 

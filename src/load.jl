@@ -7,14 +7,24 @@ function numberconstraint!(m::SOItoMOIBridge, cr, f, s)
     m.constr += n
 end
 
+function bridgeconstraint!(m, cr, f, s::MOI.Interval)
+    push!(m.int, SplitIntervalBridge(m, f, s))
+    m.bridgemap[cr.value] = length(m.int)
+end
+
+function bridgeconstraint!(m, cr, f, s::MOI.PositiveSemidefiniteConeScaled)
+    push!(m.psdcs, PSDCScaledBridge(m, f, s))
+    m.bridgemap[cr.value] = length(m.psdcs)
+end
+
 function bridgeconstraint!(m, cr, f, s::MOI.SecondOrderCone)
     push!(m.soc, SOCtoPSDCBridge(m, f, s))
     m.bridgemap[cr.value] = length(m.soc)
 end
 
-function bridgeconstraint!(m, cr, f, s::MOI.Interval)
-    push!(m.int, SplitIntervalBridge(m, f, s))
-    m.bridgemap[cr.value] = length(m.int)
+function bridgeconstraint!(m, cr, f, s::MOI.RotatedSecondOrderCone)
+    push!(m.rsoc, RSOCtoPSDCBridge(m, f, s))
+    m.bridgemap[cr.value] = length(m.rsoc)
 end
 
 for (f, SS) in ((:loadvariable, :SupportedSets), (:loadconstraint, :SupportedSets), (:createslack, :SupportedSets), (:numberconstraint, :SupportedSets), (:bridgeconstraint, :BridgedSets))
@@ -64,15 +74,23 @@ nconstraints{F<:SVF, S<:SupportedSets}(cs::Vector{MOIU.C{F, S}}) = 0
 nconstraints{F, S<:BridgedSets}(cs::Vector{MOIU.C{F, S}}) = 0
 
 function resetbridges!(m)
-    for s in m.soc
-        MOI.delete!(m, s)
-    end
     for s in m.int
         MOI.delete!(m, s)
     end
+    for s in m.psdcs
+        MOI.delete!(m, s)
+    end
+    for s in m.soc
+        MOI.delete!(m, s)
+    end
+    for s in m.rsoc
+        MOI.delete!(m, s)
+    end
     m.bridgemap = Vector{Int}(m.sdinstance.nconstrs)
-    m.soc = SOCtoPSDCBridge{Float64}[]
     m.int = SplitIntervalBridge{Float64}[]
+    m.psdcs = PSDCScaledBridge{Float64}[]
+    m.soc = SOCtoPSDCBridge{Float64}[]
+    m.rsoc = RSOCtoPSDCBridge{Float64}[]
 end
 
 function init!(m::SOItoMOIBridge)
