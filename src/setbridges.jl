@@ -65,3 +65,30 @@ end
 function MOI.delete!(m, c::SOCtoPSDCBridge)
     MOI.delete!(m, c.cr)
 end
+
+struct SplitIntervalBridge{T}
+    lower::CR{MOI.ScalarAffineFunction{T}, MOI.GreaterThan{T}}
+    upper::CR{MOI.ScalarAffineFunction{T}, MOI.LessThan{T}}
+end
+function SplitIntervalBridge(m, f, s::MOI.Interval)
+    lower = MOI.addconstraint!(m, f, MOI.GreaterThan(s.lower))
+    upper = MOI.addconstraint!(m, f, MOI.LessThan(s.upper))
+    SplitIntervalBridge(lower, upper)
+end
+function MOI.getattribute(m, a::MOI.ConstraintPrimal, c::SplitIntervalBridge)
+    # lower and upper should give the same value
+    MOI.getattribute(m, MOI.ConstraintPrimal(), c.lower)
+end
+function MOI.getattribute(m, a::MOI.ConstraintDual, c::SplitIntervalBridge)
+    lowd = MOI.getattribute(m, MOI.ConstraintDual(), c.lower) # Should be nonnegative
+    uppd = MOI.getattribute(m, MOI.ConstraintDual(), c.upper) # Should be nonpositive
+    if lowd > -uppd
+        lowd
+    else
+        uppd
+    end
+end
+function MOI.delete!(m, c::SplitIntervalBridge)
+    MOI.delete!(m, c.lower)
+    MOI.delete!(m, c.upper)
+end

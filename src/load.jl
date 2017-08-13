@@ -12,6 +12,11 @@ function bridgeconstraint!(m, cr, f, s::MOI.SecondOrderCone)
     m.bridgemap[cr.value] = length(m.soc)
 end
 
+function bridgeconstraint!(m, cr, f, s::MOI.Interval)
+    push!(m.int, SplitIntervalBridge(m, f, s))
+    m.bridgemap[cr.value] = length(m.int)
+end
+
 for (f, SS) in ((:loadvariable, :SupportedSets), (:loadconstraint, :SupportedSets), (:createslack, :SupportedSets), (:numberconstraint, :SupportedSets), (:bridgeconstraint, :BridgedSets))
     funs = Symbol(string(f) * "s!")
     fun = Symbol(string(f) * "!")
@@ -62,8 +67,12 @@ function resetbridges!(m)
     for s in m.soc
         MOI.delete!(m, s)
     end
+    for s in m.int
+        MOI.delete!(m, s)
+    end
     m.bridgemap = Vector{Int}(m.sdinstance.nconstrs)
     m.soc = SOCtoPSDCBridge{Float64}[]
+    m.int = SplitIntervalBridge{Float64}[]
 end
 
 function init!(m::SOItoMOIBridge)
