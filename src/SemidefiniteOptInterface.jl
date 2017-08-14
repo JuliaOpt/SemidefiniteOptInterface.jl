@@ -189,7 +189,10 @@ function getslack(m::SOItoMOIBridge, c::Int)
     if iszero(blk)
         0.0
     else
-        X[blk][i, j]
+        if i != j
+            coef *= 2 # We should take X[blk][i, j] + X[blk][j, i] but they are equal
+        end
+        coef * X[blk][i, j]
     end
 end
 

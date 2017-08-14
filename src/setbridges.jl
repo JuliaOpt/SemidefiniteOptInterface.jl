@@ -167,7 +167,7 @@ function MOI.getattribute(m, a::MOI.ConstraintDual, c::SOCtoPSDCBridge)
         i += j
         j -= 1
     end
-    [tdual; dual[2:c.dim]]
+    [tdual; dual[2:c.dim]*2]
 end
 
 # (t, u, x) is transformed into the matrix
@@ -211,7 +211,7 @@ function MOI.getattribute(m, a::MOI.ConstraintDual, c::RSOCtoPSDCBridge)
         j -= 1
         i += j
     end
-    [dual[1]; 2udual; dual[2:c.dim]]
+    [dual[1]; 2udual; dual[2:c.dim]*2]
 end
 
 function MOI.delete!(m, c::Union{PSDCScaledBridge, SOCtoPSDCBridge, RSOCtoPSDCBridge})
