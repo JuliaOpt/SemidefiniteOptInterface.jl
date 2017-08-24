@@ -102,6 +102,7 @@ MOI.addvariables!(m::SOItoMOIBridge, n::Integer) = MOI.addvariables!(m.sdinstanc
 # Constraints
 
 MOI.isvalid(m::SOItoMOIBridge, r::Union{VR, CR}) = MOI.isvalid(m.sdinstance, r)
+MOI.candelete(m::SOItoMOIBridge, r::Union{VR, CR}) = MOI.candelete(m.sdinstance, r)
 MOI.delete!(m::SOItoMOIBridge, r::Union{VR, CR}) = MOI.delete!(m.sdinstance, r)
 MOI.addconstraint!(m::SOItoMOIBridge, f::Union{ASF, AVF}, s) = MOI.addconstraint!(m.sdinstance, f, s)
 
@@ -125,6 +126,7 @@ function MOI.optimize!(m::SOItoMOIBridge)
     MOI.optimize!(m.sdsolver)
 end
 
+MOI.canmodifyconstraint(m::SOItoMOIBridge, cr::CR, change) = MOI.canmodifyconstraint(m.sdinstance, cr, change)
 function MOI.modifyconstraint!(m::SOItoMOIBridge, cr::CR, change)
     MOI.modifyconstraint!(m.sdinstance, cr, change)
 end
@@ -132,6 +134,7 @@ end
 # Objective
 
 MOI.setobjective!(m::SOItoMOIBridge, sense::MOI.OptimizationSense, f) = MOI.setobjective!(m.sdinstance, sense, f)
+MOI.canmodifyobjective(m::SOItoMOIBridge, change::MOI.AbstractFunctionModification) = MOI.canmodifyobjective(m.sdinstance, change)
 MOI.modifyobjective!(m::SOItoMOIBridge, change::MOI.AbstractFunctionModification) = MOI.modifyobjective!(m.sdinstance, change)
 
 _objsgn(m) = m.sdinstance.sense == MOI.MinSense ? -1 : 1
