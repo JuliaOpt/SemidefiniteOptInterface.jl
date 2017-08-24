@@ -5,11 +5,18 @@ function newblock(m::SOItoMOIBridge, n)
     m.nblocks += 1
 end
 
+isfree(m, v::UInt64) = v in m.free
+isfree(m, v::Vector{UInt64}) = all(isfree.(m, v))
+function unfree(m, v)
+    @assert isfree(m, v)
+    delete!(m.free, v)
+end
+
 function loadvariable!(m::SOItoMOIBridge, vs::VIS, s::ZS)
     blk = newblock(m, -length(vs))
     for (i, v) in enumerate(vs)
         m.varmap[v] = [(blk, i, i, 1.0, _getconstant(m, s))]
-        pop!(m.free, v)
+        unfree(m, v)
     end
 end
 vscaling(::Type{<:NS}) = 1.
@@ -18,7 +25,7 @@ function loadvariable!{S<:Union{NS, PS}}(m::SOItoMOIBridge, vs::VIS, s::S)
     blk = newblock(m, -length(vs))
     for (i, v) in enumerate(vs)
         m.varmap[v] = [(blk, i, i, vscaling(S), _getconstant(m, s))]
-        pop!(m.free, v)
+        unfree(m, v)
     end
 end
 function getmatdim(k::Integer)
@@ -39,15 +46,25 @@ function loadvariable!(m::SOItoMOIBridge, vs::VIS, ::DS)
         for j in i:d
             k += 1
             m.varmap[vs[k]] = [(blk, i, j, i == j ? 1.0 : 0.5, 0.0)]
-            pop!(m.free, vs[k])
+            unfree(m, vs[k])
         end
     end
 end
 function loadvariable!(m::SOItoMOIBridge, cr, constr::SVF, s)
-    loadvariable!(m, constr.variable.value, s)
+    vs = constr.variable.value
+    if isfree(m, vs)
+        loadvariable!(m, vs, s)
+    else
+        push!(m.double, MOI.addconstraint!(m, MOI.ScalarAffineFunction([constr.variable], [1.], 0.), s))
+    end
 end
 function loadvariable!(m::SOItoMOIBridge, cr, constr::VVF, s)
-    loadvariable!(m, map(v -> v.value, constr.variables), s)
+    vs = map(v -> v.value, constr.variables)
+    if isfree(m, vs)
+        loadvariable!(m, vs, s)
+    else
+        push!(m.double, MOI.addconstraint!(m, MOI.VectorAffineFunction{Float64}(constr), s))
+    end
 end
 
 function loadvariable!(m::SOItoMOIBridge, cr, constr::AF, s) end

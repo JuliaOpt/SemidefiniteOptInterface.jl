@@ -63,6 +63,7 @@ mutable struct SOItoMOIBridge{ST <: AbstractSDSolver, SIT <: AbstractSDSolverIns
     psdcs::Vector{PSDCScaledBridge{Float64}}
     soc::Vector{SOCtoPSDCBridge{Float64}}
     rsoc::Vector{RSOCtoPSDCBridge{Float64}}
+    double::Vector{CR} # created when there are two cones for same variable
     function SOItoMOIBridge(solver::ST, sdsolver::SIT) where {ST, SIT}
         new{ST, SIT}(solver, SDInstance{Float64}(), sdsolver,
             0.0, 0, 0, 0,
@@ -75,7 +76,8 @@ mutable struct SOItoMOIBridge{ST <: AbstractSDSolver, SIT <: AbstractSDSolverIns
             SplitIntervalBridge{Float64}[],
             PSDCScaledBridge{Float64}[],
             SOCtoPSDCBridge{Float64}[],
-            RSOCtoPSDCBridge{Float64}[])
+            RSOCtoPSDCBridge{Float64}[],
+            CR[])
     end
     function SOItoMOIBridge(solver::ST) where ST
         SOItoMOIBridge(solver, SDSolverInstance(solver))
