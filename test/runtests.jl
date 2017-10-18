@@ -2,7 +2,7 @@ using SemidefiniteOptInterface
 using Base.Test
 
 using CSDP
-solvers = [CSDP.CSDPSolver()]
+solvers = [CSDP.CSDPSolver(printlevel=0)]
 
 @testset "Linear tests with $solver" for solver in solvers
     include(joinpath(Pkg.dir("MathOptInterface"), "test", "contlinear.jl"))
