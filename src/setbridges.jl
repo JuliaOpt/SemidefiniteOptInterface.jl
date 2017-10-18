@@ -97,8 +97,8 @@ end
     _SOCtoPSDCaff{T}(f::MOI.VectorAffineFunction{T}, g::MOI.ScalarAffineFunction{T})
 
 Builds a VectorAffineFunction representing the upper (or lower) triangular part of the matrix
-[ f[1]     f[2:end]^T ]
-[ f[2:end] g * I      ]
+[ f[1]     f[2:end]' ]
+[ f[2:end] g * I     ]
 """
 function _SOCtoPSDCaff{T}(f::MOI.VectorAffineFunction{T}, g::MOI.ScalarAffineFunction{T})
     dim = length(f.constant)
@@ -132,14 +132,14 @@ function Base.getindex(f::MOI.VectorAffineFunction, i)
 end
 
 # (t, x) is transformed into the matrix
-# [t x^T]
+# [t  x']
 # [x t*I]
 # Indeed by the Schur Complement, it is positive definite iff
 # tI ≻ 0
-# t - x^T * (t*I)^(-1) * x ≻ 0
+# t - x' * (t*I)^(-1) * x ≻ 0
 # which is equivalent to
 # t > 0
-# t^2 > x^T * x
+# t^2 > x' * x
 struct SOCtoPSDCBridge{T}
     dim::Int
     cr::CR{MOI.VectorAffineFunction{T}, MOI.PositiveSemidefiniteConeTriangle}
@@ -171,14 +171,14 @@ function MOI.getattribute(m, a::MOI.ConstraintDual, c::SOCtoPSDCBridge)
 end
 
 # (t, u, x) is transformed into the matrix
-# [t  x^T ]
-# [x u*I/2]
+# [t   x']
+# [x 2u*I]
 # Indeed by the Schur Complement, it is positive definite iff
 # uI ≻ 0
-# t - x^T * (u*I/2)^(-1) * x ≻ 0
+# t - x' * (2u*I)^(-1) * x ≻ 0
 # which is equivalent to
 # u > 0
-# 2t*u > x^T * x
+# 2t*u > x' * x
 struct RSOCtoPSDCBridge{T}
     dim::Int
     cr::CR{MOI.VectorAffineFunction{T}, MOI.PositiveSemidefiniteConeTriangle}
@@ -198,7 +198,9 @@ function _RSOCtoPSDCaff(f::MOI.VectorAffineFunction)
 end
 
 function MOI.getattribute(m, a::MOI.ConstraintPrimal, c::RSOCtoPSDCBridge)
-    MOI.getattribute(m, MOI.ConstraintPrimal(), c.cr)[1:c.dim]
+    x = MOI.getattribute(m, MOI.ConstraintPrimal(), c.cr)[[1; c.dim+1; 2:c.dim]]
+    x[2] /= 2 # It is (2u*I)[1,1] so it needs to be divided by 2 to get u
+    x
 end
 function MOI.getattribute(m, a::MOI.ConstraintDual, c::RSOCtoPSDCBridge)
     dual = MOI.getattribute(m, MOI.ConstraintDual(), c.cr)
