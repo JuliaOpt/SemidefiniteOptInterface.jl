@@ -73,7 +73,7 @@ nconstraints{F<:SVF, S<:ZS}(cs::Vector{MOIU.C{F, S}}) = length(cs)
 nconstraints{F<:SVF, S<:SupportedSets}(cs::Vector{MOIU.C{F, S}}) = 0
 nconstraints{F, S<:BridgedSets}(cs::Vector{MOIU.C{F, S}}) = 0
 
-function resetbridges!(m)
+function resetbridges!(m::SOItoMOIBridge{T}) where T
     for s in m.int
         MOI.delete!(m, s)
     end
@@ -90,26 +90,26 @@ function resetbridges!(m)
         MOI.delete!(m, s)
     end
     m.bridgemap = Vector{Int}(m.sdinstance.nconstrs)
-    m.int = SplitIntervalBridge{Float64}[]
-    m.psdcs = PSDCScaledBridge{Float64}[]
-    m.soc = SOCtoPSDCBridge{Float64}[]
-    m.rsoc = RSOCtoPSDCBridge{Float64}[]
+    m.int = SplitIntervalBridge{T}[]
+    m.psdcs = PSDCScaledBridge{T}[]
+    m.soc = SOCtoPSDCBridge{T}[]
+    m.rsoc = RSOCtoPSDCBridge{T}[]
     m.double = CR[]
 end
 
-function initvariables!(m::SOItoMOIBridge)
-    m.objshift = 0.0
+function initvariables!(m::SOItoMOIBridge{T}) where T
+    m.objshift = zero(T)
     m.constr = 0
     m.nblocks = 0
     m.blockdims = Int[]
     m.free = IntSet(1:m.sdinstance.nvars)
-    m.varmap = Vector{Vector{Tuple{Int,Int,Int,Float64,Float64}}}(m.sdinstance.nvars)
+    m.varmap = Vector{Vector{Tuple{Int,Int,Int,T,T}}}(m.sdinstance.nvars)
 end
 
-function initconstraints!(m::SOItoMOIBridge)
+function initconstraints!(m::SOItoMOIBridge{T}) where T
     m.nconstrs = sum(MOIU.broadcastvcat(nconstraints, m.sdinstance))
     m.constrmap = Vector{UnitRange{Int}}(m.sdinstance.nconstrs)
-    m.slackmap = Vector{Tuple{Int, Int, Int, Float64}}(m.nconstrs)
+    m.slackmap = Vector{Tuple{Int, Int, Int, T}}(m.nconstrs)
 end
 
 _broadcastcall(f, m) = MOIU.broadcastcall(constrs -> f(m, constrs), m.sdinstance)

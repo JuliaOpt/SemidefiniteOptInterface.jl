@@ -44,47 +44,51 @@ const CR{FT, ST} = MOI.ConstraintReference{FT, ST}
 
 include("setbridges.jl")
 
-mutable struct SOItoMOIBridge{ST <: AbstractSDSolver, SIT <: AbstractSDSolverInstance} <: MOI.AbstractSolverInstance
+mutable struct SOItoMOIBridge{T, ST <: AbstractSDSolver, SIT <: AbstractSDSolverInstance} <: MOI.AbstractSolverInstance
     solver::ST
-    sdinstance::SDInstance{Float64}
+    sdinstance::SDInstance{T}
     sdsolver::SIT
-    objshift::Float64
+    objshift::T
     nconstrs::Int
     constr::Int
     nblocks::Int
     blockdims::Vector{Int}
     free::IntSet
-    varmap::Vector{Vector{Tuple{Int, Int, Int, Float64, Float64}}} # Variable Reference value vi -> blk, i, j, coef, shift # x = sum coef * X[blk][i, j] + shift
+    varmap::Vector{Vector{Tuple{Int, Int, Int, T, T}}} # Variable Reference value vi -> blk, i, j, coef, shift # x = sum coef * X[blk][i, j] + shift
     constrmap::Vector{UnitRange{Int}} # Constraint Reference value ci -> cs
-    slackmap::Vector{Tuple{Int, Int, Int, Float64}} # c -> blk, i, j, coef
+    slackmap::Vector{Tuple{Int, Int, Int, T}} # c -> blk, i, j, coef
     # Bridges
     bridgemap::Vector{Int}
-    int::Vector{SplitIntervalBridge{Float64}}
-    psdcs::Vector{PSDCScaledBridge{Float64}}
-    soc::Vector{SOCtoPSDCBridge{Float64}}
-    rsoc::Vector{RSOCtoPSDCBridge{Float64}}
+    int::Vector{SplitIntervalBridge{T}}
+    psdcs::Vector{PSDCScaledBridge{T}}
+    soc::Vector{SOCtoPSDCBridge{T}}
+    rsoc::Vector{RSOCtoPSDCBridge{T}}
     double::Vector{CR} # created when there are two cones for same variable
-    function SOItoMOIBridge(solver::ST, sdsolver::SIT) where {ST, SIT}
-        new{ST, SIT}(solver, SDInstance{Float64}(), sdsolver,
-            0.0, 0, 0, 0,
+    function SOItoMOIBridge(T, solver::ST, sdsolver::SIT) where {ST, SIT}
+        new{T, ST, SIT}(solver, SDInstance{T}(), sdsolver,
+            zero(T), 0, 0, 0,
             Int[],
             IntSet(),
-            Vector{Tuple{Int,Int,Int,Float64}}[],
+            Vector{Tuple{Int,Int,Int,T}}[],
             UnitRange{Int}[],
-            Tuple{Int, Int, Int, Float64}[],
+            Tuple{Int, Int, Int, T}[],
             Int[],
-            SplitIntervalBridge{Float64}[],
-            PSDCScaledBridge{Float64}[],
-            SOCtoPSDCBridge{Float64}[],
-            RSOCtoPSDCBridge{Float64}[],
+            SplitIntervalBridge{T}[],
+            PSDCScaledBridge{T}[],
+            SOCtoPSDCBridge{T}[],
+            RSOCtoPSDCBridge{T}[],
             CR[])
     end
     function SOItoMOIBridge(solver::ST) where ST
-        SOItoMOIBridge(solver, SDSolverInstance(solver))
+        #T = method_exists(MOI.coefficienttype, Tuple{ST}) ? MOI.coefficienttype(solver) : Float64
+        SOItoMOIBridge(MOI.coefficienttype(solver), solver, SDSolverInstance(solver))
     end
 end
 
+
 MOI.SolverInstance(s::AbstractSDSolver) = SOItoMOIBridge(s)
+
+MOI.coefficienttype(::SOItoMOIBridge{T}) where T = T
 
 MOI.supportsproblem(m::AbstractSDSolver, ::Type{<:MOI.AbstractFunction}, constrtypes) = false
 
@@ -165,9 +169,9 @@ MOI.cangetattribute(m::SOItoMOIBridge, ::Union{MOI.VariablePrimal,
                                                MOI.ConstraintDual}, ref::Vector{R}) where R <: Union{CR, VR} = true
 
 
-function MOI.getattribute(m::SOItoMOIBridge, ::MOI.VariablePrimal, vr::VR)
+function MOI.getattribute(m::SOItoMOIBridge{T}, ::MOI.VariablePrimal, vr::VR) where T
     X = getX(m.sdsolver)
-    x = 0.0
+    x = zero(T)
     for (blk, i, j, coef, shift) in m.varmap[vr.value]
         x += shift
         if blk != 0
@@ -189,11 +193,11 @@ function _getattribute(m::SOItoMOIBridge, cr::CR{<:AVF}, f)
     f.(m, m.constrmap[cr.value])
 end
 
-function getslack(m::SOItoMOIBridge, c::Int)
+function getslack(m::SOItoMOIBridge{T}, c::Int) where T
     X = getX(m.sdsolver)
     blk, i, j, coef = m.slackmap[c]
     if iszero(blk)
-        0.0
+        zero(T)
     else
         if i != j
             coef *= 2 # We should take X[blk][i, j] + X[blk][j, i] but they are equal
@@ -206,9 +210,9 @@ function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR)
     _getattribute(m, cr, getslack) + _getconstant(m, MOI.getattribute(m, MOI.ConstraintSet(), cr))
 end
 
-function getvardual(m::SOItoMOIBridge, vi::UInt64)
+function getvardual(m::SOItoMOIBridge{T}, vi::UInt64) where T
     Z = getZ(m.sdsolver)
-    z = 0.
+    z = zero(T)
     for (blk, i, j, coef) in m.varmap[vi]
         if blk != 0
             z += Z[blk][i, j] * sign(coef)
@@ -225,9 +229,9 @@ function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR{<:VF, 
     getvardual(m, MOI.getattribute(m, MOI.ConstraintFunction(), cr))
 end
 
-function getdual(m::SOItoMOIBridge, c::Int)
+function getdual(m::SOItoMOIBridge{T}, c::Int) where T
     if c == 0
-        0.
+        zero(T)
     else
         -gety(m.sdsolver)[c]
     end
@@ -235,8 +239,8 @@ end
 function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR)
     _getattribute(m, cr, getdual)
 end
-function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR{F, DS}) where F
-    scalevec!(_getattribute(m, cr, getdual), 1/2)
+function MOI.getattribute(m::SOItoMOIBridge{T}, ::MOI.ConstraintDual, cr::CR{F, DS}) where {T, F}
+    scalevec!(_getattribute(m, cr, getdual), one(T)/2)
 end
 
 # Bridges

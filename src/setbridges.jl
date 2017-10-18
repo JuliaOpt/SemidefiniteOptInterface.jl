@@ -47,12 +47,12 @@ struct PSDCScaledBridge{T}
     cr::CR{MOI.VectorAffineFunction{T}, MOI.PositiveSemidefiniteConeTriangle}
 end
 unscalefunction(f::MOI.VectorOfVariables, diagidx) = unscalefunction(tofun(f), diagidx)
-function unscalefunction(f::MOI.VectorAffineFunction, diagidx)
+function unscalefunction(f::MOI.VectorAffineFunction{T}, diagidx) where T
     outputindex = f.outputindex
     variables = f.variables
     coefficients = copy(f.coefficients)
     constant = copy(f.constant)
-    s2 = sqrt(2)
+    s2 = sqrt(2*one(T))
     scalevec!(constant, 1/s2)
     for i in eachindex(outputindex)
         if !(outputindex[i] in diagidx)
@@ -86,11 +86,11 @@ function scalevec!(v, c)
     end
     v
 end
-function MOI.getattribute(m, a::MOI.ConstraintPrimal, c::PSDCScaledBridge)
-    scalevec!(MOI.getattribute(m, MOI.ConstraintPrimal(), c.cr), sqrt(2))
+function MOI.getattribute(m, a::MOI.ConstraintPrimal, c::PSDCScaledBridge{T}) where T
+    scalevec!(MOI.getattribute(m, MOI.ConstraintPrimal(), c.cr), sqrt(2one(T)))
 end
-function MOI.getattribute(m, a::MOI.ConstraintDual, c::PSDCScaledBridge)
-    scalevec!(MOI.getattribute(m, MOI.ConstraintDual(), c.cr), sqrt(2))
+function MOI.getattribute(m, a::MOI.ConstraintDual, c::PSDCScaledBridge{T}) where T
+    scalevec!(MOI.getattribute(m, MOI.ConstraintDual(), c.cr), sqrt(2one(T)))
 end
 
 """
@@ -156,9 +156,9 @@ _SOCtoPSDCaff(f::MOI.VectorAffineFunction) = _SOCtoPSDCaff(f, f[1])
 function MOI.getattribute(m, a::MOI.ConstraintPrimal, c::SOCtoPSDCBridge)
     MOI.getattribute(m, MOI.ConstraintPrimal(), c.cr)[1:c.dim]
 end
-function MOI.getattribute(m, a::MOI.ConstraintDual, c::SOCtoPSDCBridge)
+function MOI.getattribute(m, a::MOI.ConstraintDual, c::SOCtoPSDCBridge{T}) where T
     dual = MOI.getattribute(m, MOI.ConstraintDual(), c.cr)
-    tdual = 0.0
+    tdual = zero(T)
     j = c.dim
     i = 1
     n = div(c.dim * (c.dim+1), 2)
@@ -202,9 +202,9 @@ function MOI.getattribute(m, a::MOI.ConstraintPrimal, c::RSOCtoPSDCBridge)
     x[2] /= 2 # It is (2u*I)[1,1] so it needs to be divided by 2 to get u
     x
 end
-function MOI.getattribute(m, a::MOI.ConstraintDual, c::RSOCtoPSDCBridge)
+function MOI.getattribute(m, a::MOI.ConstraintDual, c::RSOCtoPSDCBridge{T}) where T
     dual = MOI.getattribute(m, MOI.ConstraintDual(), c.cr)
-    udual = 0.0
+    udual = zero(T)
     j = c.dim
     i = c.dim + 1
     n = div(c.dim * (c.dim+1), 2)
