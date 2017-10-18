@@ -135,7 +135,7 @@ end
 
 # Objective
 
-MOI.setobjective!(m::SOItoMOIBridge, sense::MOI.OptimizationSense, f) = MOI.setobjective!(m.sdinstance, sense, f)
+MOI.setattribute!(m::SOItoMOIBridge, att::Union{MOI.ObjectiveSense, MOI.ObjectiveFunction}, arg) = MOI.setattribute!(m.sdinstance, att, arg)
 MOI.canmodifyobjective(m::SOItoMOIBridge, change::MOI.AbstractFunctionModification) = MOI.canmodifyobjective(m.sdinstance, change)
 MOI.modifyobjective!(m::SOItoMOIBridge, change::MOI.AbstractFunctionModification) = MOI.modifyobjective!(m.sdinstance, change)
 
