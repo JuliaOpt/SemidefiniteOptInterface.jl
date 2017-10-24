@@ -11,13 +11,13 @@ function SplitIntervalBridge(m, f, s::MOI.Interval)
     upper = MOI.addconstraint!(m, f, MOI.LessThan(s.upper))
     SplitIntervalBridge(lower, upper)
 end
-function MOI.getattribute(m, a::MOI.ConstraintPrimal, c::SplitIntervalBridge)
+function MOI.get(m, a::MOI.ConstraintPrimal, c::SplitIntervalBridge)
     # lower and upper should give the same value
-    MOI.getattribute(m, MOI.ConstraintPrimal(), c.lower)
+    MOI.get(m, MOI.ConstraintPrimal(), c.lower)
 end
-function MOI.getattribute(m, a::MOI.ConstraintDual, c::SplitIntervalBridge)
-    lowd = MOI.getattribute(m, MOI.ConstraintDual(), c.lower) # Should be nonnegative
-    uppd = MOI.getattribute(m, MOI.ConstraintDual(), c.upper) # Should be nonpositive
+function MOI.get(m, a::MOI.ConstraintDual, c::SplitIntervalBridge)
+    lowd = MOI.get(m, MOI.ConstraintDual(), c.lower) # Should be nonnegative
+    uppd = MOI.get(m, MOI.ConstraintDual(), c.upper) # Should be nonpositive
     if lowd > -uppd
         lowd
     else
@@ -86,19 +86,19 @@ function scalevec!(v, c)
     end
     v
 end
-function MOI.getattribute(m, a::MOI.ConstraintPrimal, c::PSDCScaledBridge)
-    scalevec!(MOI.getattribute(m, MOI.ConstraintPrimal(), c.cr), sqrt(2))
+function MOI.get(m, a::MOI.ConstraintPrimal, c::PSDCScaledBridge)
+    scalevec!(MOI.get(m, MOI.ConstraintPrimal(), c.cr), sqrt(2))
 end
-function MOI.getattribute(m, a::MOI.ConstraintDual, c::PSDCScaledBridge)
-    scalevec!(MOI.getattribute(m, MOI.ConstraintDual(), c.cr), sqrt(2))
+function MOI.get(m, a::MOI.ConstraintDual, c::PSDCScaledBridge)
+    scalevec!(MOI.get(m, MOI.ConstraintDual(), c.cr), sqrt(2))
 end
 
 """
     _SOCtoPSDCaff{T}(f::MOI.VectorAffineFunction{T}, g::MOI.ScalarAffineFunction{T})
 
 Builds a VectorAffineFunction representing the upper (or lower) triangular part of the matrix
-[ f[1]     f[2:end]^T ]
-[ f[2:end] g * I      ]
+[ f[1]     f[2:end]' ]
+[ f[2:end] g * I     ]
 """
 function _SOCtoPSDCaff{T}(f::MOI.VectorAffineFunction{T}, g::MOI.ScalarAffineFunction{T})
     dim = length(f.constant)
@@ -132,14 +132,14 @@ function Base.getindex(f::MOI.VectorAffineFunction, i)
 end
 
 # (t, x) is transformed into the matrix
-# [t x^T]
+# [t  x']
 # [x t*I]
 # Indeed by the Schur Complement, it is positive definite iff
 # tI ≻ 0
-# t - x^T * (t*I)^(-1) * x ≻ 0
+# t - x' * (t*I)^(-1) * x ≻ 0
 # which is equivalent to
 # t > 0
-# t^2 > x^T * x
+# t^2 > x' * x
 struct SOCtoPSDCBridge{T}
     dim::Int
     cr::CR{MOI.VectorAffineFunction{T}, MOI.PositiveSemidefiniteConeTriangle}
@@ -153,11 +153,11 @@ end
 _SOCtoPSDCaff(f::MOI.VectorOfVariables) = _SOCtoPSDCaff(tofun(f))
 _SOCtoPSDCaff(f::MOI.VectorAffineFunction) = _SOCtoPSDCaff(f, f[1])
 
-function MOI.getattribute(m, a::MOI.ConstraintPrimal, c::SOCtoPSDCBridge)
-    MOI.getattribute(m, MOI.ConstraintPrimal(), c.cr)[1:c.dim]
+function MOI.get(m, a::MOI.ConstraintPrimal, c::SOCtoPSDCBridge)
+    MOI.get(m, MOI.ConstraintPrimal(), c.cr)[1:c.dim]
 end
-function MOI.getattribute(m, a::MOI.ConstraintDual, c::SOCtoPSDCBridge)
-    dual = MOI.getattribute(m, MOI.ConstraintDual(), c.cr)
+function MOI.get(m, a::MOI.ConstraintDual, c::SOCtoPSDCBridge)
+    dual = MOI.get(m, MOI.ConstraintDual(), c.cr)
     tdual = 0.0
     j = c.dim
     i = 1
@@ -171,14 +171,14 @@ function MOI.getattribute(m, a::MOI.ConstraintDual, c::SOCtoPSDCBridge)
 end
 
 # (t, u, x) is transformed into the matrix
-# [t  x^T ]
-# [x u*I/2]
+# [t   x']
+# [x 2u*I]
 # Indeed by the Schur Complement, it is positive definite iff
 # uI ≻ 0
-# t - x^T * (u*I/2)^(-1) * x ≻ 0
+# t - x' * (2u*I)^(-1) * x ≻ 0
 # which is equivalent to
 # u > 0
-# 2t*u > x^T * x
+# 2t*u > x' * x
 struct RSOCtoPSDCBridge{T}
     dim::Int
     cr::CR{MOI.VectorAffineFunction{T}, MOI.PositiveSemidefiniteConeTriangle}
@@ -197,11 +197,13 @@ function _RSOCtoPSDCaff(f::MOI.VectorAffineFunction)
     _SOCtoPSDCaff(f[[1; 3:n]], g)
 end
 
-function MOI.getattribute(m, a::MOI.ConstraintPrimal, c::RSOCtoPSDCBridge)
-    MOI.getattribute(m, MOI.ConstraintPrimal(), c.cr)[1:c.dim]
+function MOI.get(m, a::MOI.ConstraintPrimal, c::RSOCtoPSDCBridge)
+    x = MOI.get(m, MOI.ConstraintPrimal(), c.cr)[[1; c.dim+1; 2:c.dim]]
+    x[2] /= 2 # It is (2u*I)[1,1] so it needs to be divided by 2 to get u
+    x
 end
-function MOI.getattribute(m, a::MOI.ConstraintDual, c::RSOCtoPSDCBridge)
-    dual = MOI.getattribute(m, MOI.ConstraintDual(), c.cr)
+function MOI.get(m, a::MOI.ConstraintDual, c::RSOCtoPSDCBridge)
+    dual = MOI.get(m, MOI.ConstraintDual(), c.cr)
     udual = 0.0
     j = c.dim
     i = c.dim + 1

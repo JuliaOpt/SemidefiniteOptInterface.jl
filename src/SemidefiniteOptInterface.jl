@@ -9,7 +9,7 @@ MOIU.@instance SDInstance () (EqualTo, GreaterThan, LessThan, Interval) (Zeros, 
 
 abstract type AbstractSDSolver <: MOI.AbstractSolver end
 
-MOI.getattribute(m::AbstractSDSolver, ::Union{MOI.SupportsDuals,
+MOI.get(m::AbstractSDSolver, ::Union{MOI.SupportsDuals,
                                               MOI.SupportsAddVariableAfterSolve,
                                               MOI.SupportsAddConstraintAfterSolve,
                                               MOI.SupportsDeleteVariable,
@@ -109,18 +109,18 @@ MOI.delete!(m::SOItoMOIBridge, r::Union{VR, CR}) = MOI.delete!(m.sdinstance, r)
 MOI.addconstraint!(m::SOItoMOIBridge, f::Union{ASF, AVF}, s) = MOI.addconstraint!(m.sdinstance, f, s)
 
 const InstanceAttributeRef = Union{MOI.ConstraintFunction, MOI.ConstraintSet}
-MOI.cangetattribute(m::SOItoMOIBridge, a::InstanceAttributeRef, ref::CR) = MOI.cangetattribute(m.sdinstance, a, ref)
-MOI.getattribute(m::SOItoMOIBridge, a::InstanceAttributeRef, ref::CR) = MOI.getattribute(m.sdinstance, a, ref)
+MOI.canget(m::SOItoMOIBridge, a::InstanceAttributeRef, ref::CR) = MOI.canget(m.sdinstance, a, ref)
+MOI.get(m::SOItoMOIBridge, a::InstanceAttributeRef, ref::CR) = MOI.get(m.sdinstance, a, ref)
 
 const InstanceAttribute = Union{MOI.NumberOfVariables,
                                 MOI.NumberOfConstraints,
                                 MOI.ListOfConstraints,
                                 MOI.ObjectiveFunction,
                                 MOI.ObjectiveSense}
-MOI.cangetattribute(m::SOItoMOIBridge, a::InstanceAttribute) = MOI.cangetattribute(m.sdinstance, a)
+MOI.canget(m::SOItoMOIBridge, a::InstanceAttribute) = MOI.canget(m.sdinstance, a)
 
-function MOI.getattribute(m::SOItoMOIBridge, a::InstanceAttribute)
-    MOI.getattribute(m.sdinstance, a)
+function MOI.get(m::SOItoMOIBridge, a::InstanceAttribute)
+    MOI.get(m.sdinstance, a)
 end
 
 function MOI.optimize!(m::SOItoMOIBridge)
@@ -135,37 +135,37 @@ end
 
 # Objective
 
-MOI.setobjective!(m::SOItoMOIBridge, sense::MOI.OptimizationSense, f) = MOI.setobjective!(m.sdinstance, sense, f)
+MOI.set!(m::SOItoMOIBridge, att::Union{MOI.ObjectiveSense, MOI.ObjectiveFunction}, arg) = MOI.set!(m.sdinstance, att, arg)
 MOI.canmodifyobjective(m::SOItoMOIBridge, change::MOI.AbstractFunctionModification) = MOI.canmodifyobjective(m.sdinstance, change)
 MOI.modifyobjective!(m::SOItoMOIBridge, change::MOI.AbstractFunctionModification) = MOI.modifyobjective!(m.sdinstance, change)
 
 _objsgn(m) = m.sdinstance.sense == MOI.MinSense ? -1 : 1
-MOI.cangetattribute(m::SOItoMOIBridge, ::MOI.ObjectiveValue) = true
-function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ObjectiveValue)
+MOI.canget(m::SOItoMOIBridge, ::MOI.ObjectiveValue) = true
+function MOI.get(m::SOItoMOIBridge, ::MOI.ObjectiveValue)
     m.objshift + _objsgn(m) * getprimalobjectivevalue(m.sdsolver) + m.sdinstance.objective.constant
 end
 
 # Attributes
 
-MOI.cangetattribute(m::AbstractSDSolverInstance, ::MOI.TerminationStatus) = true
+MOI.canget(m::AbstractSDSolverInstance, ::MOI.TerminationStatus) = true
 const SolverStatus = Union{MOI.TerminationStatus, MOI.PrimalStatus, MOI.DualStatus}
-MOI.cangetattribute(m::SOItoMOIBridge, s::SolverStatus) = MOI.cangetattribute(m.sdsolver, s)
-MOI.getattribute(m::SOItoMOIBridge, s::SolverStatus) = MOI.getattribute(m.sdsolver, s)
+MOI.canget(m::SOItoMOIBridge, s::SolverStatus) = MOI.canget(m.sdsolver, s)
+MOI.get(m::SOItoMOIBridge, s::SolverStatus) = MOI.get(m.sdsolver, s)
 
 
-MOI.cangetattribute(m::SOItoMOIBridge, ::MOI.ResultCount) = true
-MOI.getattribute(m::SOItoMOIBridge, ::MOI.ResultCount) = 1
+MOI.canget(m::SOItoMOIBridge, ::MOI.ResultCount) = true
+MOI.get(m::SOItoMOIBridge, ::MOI.ResultCount) = 1
 
-MOI.cangetattribute(m::SOItoMOIBridge, ::Union{MOI.VariablePrimal,
+MOI.canget(m::SOItoMOIBridge, ::Union{MOI.VariablePrimal,
                                                MOI.ConstraintPrimal,
                                                MOI.ConstraintDual}, ref::Union{CR, VR}) = true
 
-MOI.cangetattribute(m::SOItoMOIBridge, ::Union{MOI.VariablePrimal,
+MOI.canget(m::SOItoMOIBridge, ::Union{MOI.VariablePrimal,
                                                MOI.ConstraintPrimal,
                                                MOI.ConstraintDual}, ref::Vector{R}) where R <: Union{CR, VR} = true
 
 
-function MOI.getattribute(m::SOItoMOIBridge, ::MOI.VariablePrimal, vr::VR)
+function MOI.get(m::SOItoMOIBridge, ::MOI.VariablePrimal, vr::VR)
     X = getX(m.sdsolver)
     x = 0.0
     for (blk, i, j, coef, shift) in m.varmap[vr.value]
@@ -176,8 +176,8 @@ function MOI.getattribute(m::SOItoMOIBridge, ::MOI.VariablePrimal, vr::VR)
     end
     x
 end
-function MOI.getattribute(m::SOItoMOIBridge, vp::MOI.VariablePrimal, vr::Vector{VR})
-    MOI.getattribute.(m, vp, vr)
+function MOI.get(m::SOItoMOIBridge, vp::MOI.VariablePrimal, vr::Vector{VR})
+    MOI.get.(m, vp, vr)
 end
 
 function _getattribute(m::SOItoMOIBridge, cr::CR{<:ASF}, f)
@@ -202,8 +202,8 @@ function getslack(m::SOItoMOIBridge, c::Int)
     end
 end
 
-function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR)
-    _getattribute(m, cr, getslack) + _getconstant(m, MOI.getattribute(m, MOI.ConstraintSet(), cr))
+function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR)
+    _getattribute(m, cr, getslack) + _getconstant(m, MOI.get(m, MOI.ConstraintSet(), cr))
 end
 
 function getvardual(m::SOItoMOIBridge, vi::UInt64)
@@ -218,11 +218,11 @@ function getvardual(m::SOItoMOIBridge, vi::UInt64)
 end
 getvardual(m::SOItoMOIBridge, f::SVF) = getvardual(m, f.variable.value)
 getvardual(m::SOItoMOIBridge, f::VVF) = map(vr -> getvardual(m, vr.value), f.variables)
-function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR{<:VF, <:ZS})
-    _getattribute(m, cr, getdual) + getvardual(m, MOI.getattribute(m, MOI.ConstraintFunction(), cr))
+function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR{<:VF, <:ZS})
+    _getattribute(m, cr, getdual) + getvardual(m, MOI.get(m, MOI.ConstraintFunction(), cr))
 end
-function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR{<:VF, <:SupportedSets})
-    getvardual(m, MOI.getattribute(m, MOI.ConstraintFunction(), cr))
+function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR{<:VF, <:SupportedSets})
+    getvardual(m, MOI.get(m, MOI.ConstraintFunction(), cr))
 end
 
 function getdual(m::SOItoMOIBridge, c::Int)
@@ -232,41 +232,41 @@ function getdual(m::SOItoMOIBridge, c::Int)
         -gety(m.sdsolver)[c]
     end
 end
-function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR)
+function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR)
     _getattribute(m, cr, getdual)
 end
-function MOI.getattribute(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR{F, DS}) where F
+function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR{F, DS}) where F
     scalevec!(_getattribute(m, cr, getdual), 1/2)
 end
 
 # Bridges
 
-function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintDual, cr::CR{F, IL{Float64}}) where F
-    MOI.getattribute(m, a, m.int[m.bridgemap[cr.value]])
+function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintDual, cr::CR{F, IL{Float64}}) where F
+    MOI.get(m, a, m.int[m.bridgemap[cr.value]])
 end
-function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR{F, IL{Float64}}) where F
-    MOI.getattribute(m, a, m.int[m.bridgemap[cr.value]])
-end
-
-function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintDual, cr::CR{F, CS}) where F
-    MOI.getattribute(m, a, m.psdcs[m.bridgemap[cr.value]])
-end
-function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR{F, CS}) where F
-    MOI.getattribute(m, a, m.psdcs[m.bridgemap[cr.value]])
+function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR{F, IL{Float64}}) where F
+    MOI.get(m, a, m.int[m.bridgemap[cr.value]])
 end
 
-function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintDual, cr::CR{F, SO}) where F
-    MOI.getattribute(m, a, m.soc[m.bridgemap[cr.value]])
+function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintDual, cr::CR{F, CS}) where F
+    MOI.get(m, a, m.psdcs[m.bridgemap[cr.value]])
 end
-function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR{F, SO}) where F
-    MOI.getattribute(m, a, m.soc[m.bridgemap[cr.value]])
+function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR{F, CS}) where F
+    MOI.get(m, a, m.psdcs[m.bridgemap[cr.value]])
 end
 
-function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintDual, cr::CR{F, RS}) where F
-    MOI.getattribute(m, a, m.rsoc[m.bridgemap[cr.value]])
+function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintDual, cr::CR{F, SO}) where F
+    MOI.get(m, a, m.soc[m.bridgemap[cr.value]])
 end
-function MOI.getattribute(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR{F, RS}) where F
-    MOI.getattribute(m, a, m.rsoc[m.bridgemap[cr.value]])
+function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR{F, SO}) where F
+    MOI.get(m, a, m.soc[m.bridgemap[cr.value]])
+end
+
+function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintDual, cr::CR{F, RS}) where F
+    MOI.get(m, a, m.rsoc[m.bridgemap[cr.value]])
+end
+function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR{F, RS}) where F
+    MOI.get(m, a, m.rsoc[m.bridgemap[cr.value]])
 end
 
 
