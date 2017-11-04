@@ -6,27 +6,27 @@ struct SplitIntervalBridge{T}
     lower::CR{MOI.ScalarAffineFunction{T}, MOI.GreaterThan{T}}
     upper::CR{MOI.ScalarAffineFunction{T}, MOI.LessThan{T}}
 end
-function SplitIntervalBridge(m, f, s::MOI.Interval)
-    lower = MOI.addconstraint!(m, f, MOI.GreaterThan(s.lower))
-    upper = MOI.addconstraint!(m, f, MOI.LessThan(s.upper))
+function SplitIntervalBridge(instance, f, s::MOI.Interval)
+    lower = MOI.addconstraint!(instance, f, MOI.GreaterThan(s.lower))
+    upper = MOI.addconstraint!(instance, f, MOI.LessThan(s.upper))
     SplitIntervalBridge(lower, upper)
 end
-function MOI.get(m, a::MOI.ConstraintPrimal, c::SplitIntervalBridge)
+function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::SplitIntervalBridge)
     # lower and upper should give the same value
-    MOI.get(m, MOI.ConstraintPrimal(), c.lower)
+    MOI.get(instance, MOI.ConstraintPrimal(), c.lower)
 end
-function MOI.get(m, a::MOI.ConstraintDual, c::SplitIntervalBridge)
-    lowd = MOI.get(m, MOI.ConstraintDual(), c.lower) # Should be nonnegative
-    uppd = MOI.get(m, MOI.ConstraintDual(), c.upper) # Should be nonpositive
+function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintDual, c::SplitIntervalBridge)
+    lowd = MOI.get(instance, MOI.ConstraintDual(), c.lower) # Should be nonnegative
+    uppd = MOI.get(instance, MOI.ConstraintDual(), c.upper) # Should be nonpositive
     if lowd > -uppd
         lowd
     else
         uppd
     end
 end
-function MOI.delete!(m, c::SplitIntervalBridge)
-    MOI.delete!(m, c.lower)
-    MOI.delete!(m, c.upper)
+function MOI.delete!(instance::MOI.AbstractInstance, c::SplitIntervalBridge)
+    MOI.delete!(instance, c.lower)
+    MOI.delete!(instance, c.upper)
 end
 
 function tofun(f::MOI.VectorOfVariables)
@@ -61,7 +61,7 @@ function unscalefunction(f::MOI.VectorAffineFunction, diagidx)
     end
     g = MOI.VectorAffineFunction(outputindex, variables, coefficients, constant)
 end
-function PSDCScaledBridge(m, f, s::MOI.PositiveSemidefiniteConeScaled)
+function PSDCScaledBridge(instance, f, s::MOI.PositiveSemidefiniteConeScaled)
     dim = MOI.dimension(s)
     diagidx = IntSet()
     i = 1
@@ -71,7 +71,7 @@ function PSDCScaledBridge(m, f, s::MOI.PositiveSemidefiniteConeScaled)
         i += j
         j -= 1
     end
-    cr = MOI.addconstraint!(m, unscalefunction(f, diagidx), MOI.PositiveSemidefiniteConeTriangle(dim))
+    cr = MOI.addconstraint!(instance, unscalefunction(f, diagidx), MOI.PositiveSemidefiniteConeTriangle(dim))
     PSDCScaledBridge(dim, diagidx, cr)
 end
 function scalevec!(v, c)
@@ -86,11 +86,11 @@ function scalevec!(v, c)
     end
     v
 end
-function MOI.get(m, a::MOI.ConstraintPrimal, c::PSDCScaledBridge)
-    scalevec!(MOI.get(m, MOI.ConstraintPrimal(), c.cr), sqrt(2))
+function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::PSDCScaledBridge)
+    scalevec!(MOI.get(instance, MOI.ConstraintPrimal(), c.cr), sqrt(2))
 end
-function MOI.get(m, a::MOI.ConstraintDual, c::PSDCScaledBridge)
-    scalevec!(MOI.get(m, MOI.ConstraintDual(), c.cr), sqrt(2))
+function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintDual, c::PSDCScaledBridge)
+    scalevec!(MOI.get(instance, MOI.ConstraintDual(), c.cr), sqrt(2))
 end
 
 """
@@ -144,20 +144,20 @@ struct SOCtoPSDCBridge{T}
     dim::Int
     cr::CR{MOI.VectorAffineFunction{T}, MOI.PositiveSemidefiniteConeTriangle}
 end
-function SOCtoPSDCBridge(m, f, s::MOI.SecondOrderCone)
+function SOCtoPSDCBridge(instance, f, s::MOI.SecondOrderCone)
     d = MOI.dimension(s)
-    cr = MOI.addconstraint!(m, _SOCtoPSDCaff(f), MOI.PositiveSemidefiniteConeTriangle(d))
+    cr = MOI.addconstraint!(instance, _SOCtoPSDCaff(f), MOI.PositiveSemidefiniteConeTriangle(d))
     SOCtoPSDCBridge(d, cr)
 end
 
 _SOCtoPSDCaff(f::MOI.VectorOfVariables) = _SOCtoPSDCaff(tofun(f))
 _SOCtoPSDCaff(f::MOI.VectorAffineFunction) = _SOCtoPSDCaff(f, f[1])
 
-function MOI.get(m, a::MOI.ConstraintPrimal, c::SOCtoPSDCBridge)
-    MOI.get(m, MOI.ConstraintPrimal(), c.cr)[1:c.dim]
+function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::SOCtoPSDCBridge)
+    MOI.get(instance, MOI.ConstraintPrimal(), c.cr)[1:c.dim]
 end
-function MOI.get(m, a::MOI.ConstraintDual, c::SOCtoPSDCBridge)
-    dual = MOI.get(m, MOI.ConstraintDual(), c.cr)
+function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintDual, c::SOCtoPSDCBridge)
+    dual = MOI.get(instance, MOI.ConstraintDual(), c.cr)
     tdual = 0.0
     j = c.dim
     i = 1
@@ -183,9 +183,9 @@ struct RSOCtoPSDCBridge{T}
     dim::Int
     cr::CR{MOI.VectorAffineFunction{T}, MOI.PositiveSemidefiniteConeTriangle}
 end
-function RSOCtoPSDCBridge(m, f, s::MOI.RotatedSecondOrderCone)
+function RSOCtoPSDCBridge(instance, f, s::MOI.RotatedSecondOrderCone)
     d = MOI.dimension(s)-1
-    cr = MOI.addconstraint!(m, _RSOCtoPSDCaff(f), MOI.PositiveSemidefiniteConeTriangle(d))
+    cr = MOI.addconstraint!(instance, _RSOCtoPSDCaff(f), MOI.PositiveSemidefiniteConeTriangle(d))
     RSOCtoPSDCBridge(d, cr)
 end
 
@@ -197,13 +197,13 @@ function _RSOCtoPSDCaff(f::MOI.VectorAffineFunction)
     _SOCtoPSDCaff(f[[1; 3:n]], g)
 end
 
-function MOI.get(m, a::MOI.ConstraintPrimal, c::RSOCtoPSDCBridge)
-    x = MOI.get(m, MOI.ConstraintPrimal(), c.cr)[[1; c.dim+1; 2:c.dim]]
+function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::RSOCtoPSDCBridge)
+    x = MOI.get(instance, MOI.ConstraintPrimal(), c.cr)[[1; c.dim+1; 2:c.dim]]
     x[2] /= 2 # It is (2u*I)[1,1] so it needs to be divided by 2 to get u
     x
 end
-function MOI.get(m, a::MOI.ConstraintDual, c::RSOCtoPSDCBridge)
-    dual = MOI.get(m, MOI.ConstraintDual(), c.cr)
+function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintDual, c::RSOCtoPSDCBridge)
+    dual = MOI.get(instance, MOI.ConstraintDual(), c.cr)
     udual = 0.0
     j = c.dim
     i = c.dim + 1
@@ -216,6 +216,6 @@ function MOI.get(m, a::MOI.ConstraintDual, c::RSOCtoPSDCBridge)
     [dual[1]; 2udual; dual[2:c.dim]*2]
 end
 
-function MOI.delete!(m, c::Union{PSDCScaledBridge, SOCtoPSDCBridge, RSOCtoPSDCBridge})
-    MOI.delete!(m, c.cr)
+function MOI.delete!(instance::MOI.AbstractInstance, c::Union{PSDCScaledBridge, SOCtoPSDCBridge, RSOCtoPSDCBridge})
+    MOI.delete!(instance, c.cr)
 end
