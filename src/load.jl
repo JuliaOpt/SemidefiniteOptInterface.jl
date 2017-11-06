@@ -89,7 +89,7 @@ function resetbridges!(m)
     for s in m.double
         MOI.delete!(m, s)
     end
-    m.bridgemap = Vector{Int}(m.sdinstance.nconstrs)
+    m.bridgemap = Vector{Int}(m.sdinstance.nextconstraintid)
     m.int = SplitIntervalBridge{Float64}[]
     m.psdcs = PSDCScaledBridge{Float64}[]
     m.soc = SOCtoPSDCBridge{Float64}[]
@@ -102,13 +102,13 @@ function initvariables!(m::SOItoMOIBridge)
     m.constr = 0
     m.nblocks = 0
     m.blockdims = Int[]
-    m.free = IntSet(1:m.sdinstance.nvars)
-    m.varmap = Vector{Vector{Tuple{Int,Int,Int,Float64,Float64}}}(m.sdinstance.nvars)
+    m.free = IntSet(1:m.sdinstance.nextvariableid)
+    m.varmap = Vector{Vector{Tuple{Int,Int,Int,Float64,Float64}}}(m.sdinstance.nextvariableid)
 end
 
 function initconstraints!(m::SOItoMOIBridge)
     m.nconstrs = sum(MOIU.broadcastvcat(nconstraints, m.sdinstance))
-    m.constrmap = Vector{UnitRange{Int}}(m.sdinstance.nconstrs)
+    m.constrmap = Vector{UnitRange{Int}}(m.sdinstance.nextconstraintid)
     m.slackmap = Vector{Tuple{Int, Int, Int, Float64}}(m.nconstrs)
 end
 
