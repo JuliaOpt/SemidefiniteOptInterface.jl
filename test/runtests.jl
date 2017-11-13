@@ -4,11 +4,14 @@ using Base.Test
 using CSDP
 solvers = [CSDP.CSDPSolver(printlevel=0)]
 
+using MathOptInterfaceTests
+const MOIT = MathOptInterfaceTests
+
+const config = MOIT.TestConfig(1e-7, 1e-7, true, true, true)
+
 @testset "Linear tests with $solver" for solver in solvers
-    include(joinpath(Pkg.dir("MathOptInterface"), "test", "contlinear.jl"))
-    contlineartest(solver, atol=1e-7, rtol=1e-7)
+    MOIT.contlineartest(solver, config)
 end
 @testset "Conic tests with $solver" for solver in solvers
-    include(joinpath(Pkg.dir("MathOptInterface"), "test", "contconic.jl"))
-    contconictest(solver, atol=1e-7, rtol=1e-7)
+    MOIT.contconictest(solver, config)
 end
