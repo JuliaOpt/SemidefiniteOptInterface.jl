@@ -64,12 +64,10 @@ end
 function PSDCScaledBridge(instance, f, s::MOI.PositiveSemidefiniteConeScaled)
     dim = MOI.dimension(s)
     diagidx = IntSet()
-    i = 1
-    j = dim
-    while j > 0
-        push!(diagidx, i)
+    i = 0
+    for j in 1:dim
         i += j
-        j -= 1
+        push!(diagidx, i)
     end
     cr = MOI.addconstraint!(instance, unscalefunction(f, diagidx), MOI.PositiveSemidefiniteConeTriangle(dim))
     PSDCScaledBridge(dim, diagidx, cr)
@@ -78,8 +76,8 @@ function scalevec!(v, c)
     d = div(isqrt(1+8length(v))-1, 2)
     @assert div(d*(d+1), 2) == length(v)
     i = 1
-    for j in d:-1:1
-        for k in (i+1):(i+j-1)
+    for j in 1:d
+        for k in i:(i+j-2)
             v[k] *= c
         end
         i += j
@@ -91,6 +89,11 @@ function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::PSD
 end
 function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintDual, c::PSDCScaledBridge)
     scalevec!(MOI.get(instance, MOI.ConstraintDual(), c.cr), sqrt(2))
+end
+
+function trimap(i, j)
+    @assert j <= i
+    div((i-1)*i, 2) + j
 end
 
 """
@@ -107,20 +110,17 @@ function _SOCtoPSDCaff{T}(f::MOI.VectorAffineFunction{T}, g::MOI.ScalarAffineFun
     N0 = length(f.variables)
     Ni = length(g.variables)
     N = N0 + (dim-1) * Ni
-    outputindex  = Vector{Int}(N); outputindex[1:N0]  = f.outputindex
+    outputindex  = Vector{Int}(N); outputindex[1:N0]  = trimap.(f.outputindex, 1)
     variables    = Vector{VR}(N);  variables[1:N0]    = f.variables
     coefficients = Vector{T}(N);   coefficients[1:N0] = f.coefficients
     constant = [f.constant; zeros(T, n - length(f.constant))]
     cur = N0
-    j = dim
-    i = dim + 1
-    while i <= n
-        outputindex[cur+(1:Ni)]  = i
+    for i in 2:dim
+        k = trimap(i, i)
+        outputindex[cur+(1:Ni)]  = k
         variables[cur+(1:Ni)]    = g.variables
         coefficients[cur+(1:Ni)] = g.coefficients
-        constant[i] = g.constant
-        j -= 1
-        i += j
+        constant[k] = g.constant
         cur += Ni
     end
     MOI.VectorAffineFunction(outputindex, variables, coefficients, constant)
@@ -154,20 +154,12 @@ _SOCtoPSDCaff(f::MOI.VectorOfVariables) = _SOCtoPSDCaff(tofun(f))
 _SOCtoPSDCaff(f::MOI.VectorAffineFunction) = _SOCtoPSDCaff(f, f[1])
 
 function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::SOCtoPSDCBridge)
-    MOI.get(instance, MOI.ConstraintPrimal(), c.cr)[1:c.dim]
+    MOI.get(instance, MOI.ConstraintPrimal(), c.cr)[trimap.(1:c.dim, 1)]
 end
 function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintDual, c::SOCtoPSDCBridge)
     dual = MOI.get(instance, MOI.ConstraintDual(), c.cr)
-    tdual = 0.0
-    j = c.dim
-    i = 1
-    n = div(c.dim * (c.dim+1), 2)
-    while i <= n
-        tdual += dual[i]
-        i += j
-        j -= 1
-    end
-    [tdual; dual[2:c.dim]*2]
+    tdual = sum(i -> dual[trimap(i, i)], 1:c.dim)
+    [tdual; dual[trimap.(2:c.dim, 1)]*2]
 end
 
 # (t, u, x) is transformed into the matrix
@@ -198,22 +190,14 @@ function _RSOCtoPSDCaff(f::MOI.VectorAffineFunction)
 end
 
 function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::RSOCtoPSDCBridge)
-    x = MOI.get(instance, MOI.ConstraintPrimal(), c.cr)[[1; c.dim+1; 2:c.dim]]
+    x = MOI.get(instance, MOI.ConstraintPrimal(), c.cr)[[trimap(1, 1); trimap(2, 2); trimap.(2:c.dim, 1)]]
     x[2] /= 2 # It is (2u*I)[1,1] so it needs to be divided by 2 to get u
     x
 end
 function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintDual, c::RSOCtoPSDCBridge)
     dual = MOI.get(instance, MOI.ConstraintDual(), c.cr)
-    udual = 0.0
-    j = c.dim
-    i = c.dim + 1
-    n = div(c.dim * (c.dim+1), 2)
-    while i <= n
-        udual += dual[i]
-        j -= 1
-        i += j
-    end
-    [dual[1]; 2udual; dual[2:c.dim]*2]
+    udual = sum(i -> dual[trimap(i, i)], 2:c.dim)
+    [dual[1]; 2udual; dual[trimap.(2:c.dim, 1)]*2]
 end
 
 function MOI.delete!(instance::MOI.AbstractInstance, c::Union{PSDCScaledBridge, SOCtoPSDCBridge, RSOCtoPSDCBridge})
