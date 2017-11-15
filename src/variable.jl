@@ -43,7 +43,7 @@ function loadvariable!(m::SOItoMOIBridge, vs::VIS, ::DS)
     k = 0
     blk = newblock(m, d)
     for i in 1:d
-        for j in i:d
+        for j in 1:i
             k += 1
             m.varmap[vs[k]] = [(blk, i, j, i == j ? 1.0 : 0.5, 0.0)]
             unfree(m, vs[k])

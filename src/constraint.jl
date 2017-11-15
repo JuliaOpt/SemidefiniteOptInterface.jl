@@ -12,7 +12,7 @@ function createslack!(m::SOItoMOIBridge, cs, ::DS)
     k = 0
     blk = newblock(m, d)
     for i in 1:d
-        for j in i:d
+        for j in 1:i
             k += 1
             m.slackmap[cs[k]] = (blk, i, j, i == j ? 1. : .5)
         end
