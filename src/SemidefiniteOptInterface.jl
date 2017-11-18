@@ -10,10 +10,10 @@ MOIU.@instance SDInstance () (EqualTo, GreaterThan, LessThan, Interval) (Zeros, 
 abstract type AbstractSDSolver <: MOI.AbstractSolver end
 
 MOI.get(m::AbstractSDSolver, ::Union{MOI.SupportsDuals,
-                                              MOI.SupportsAddVariableAfterSolve,
-                                              MOI.SupportsAddConstraintAfterSolve,
-                                              MOI.SupportsDeleteVariable,
-                                              MOI.SupportsDeleteConstraint}) = true
+                                     MOI.SupportsAddVariableAfterSolve,
+                                     MOI.SupportsAddConstraintAfterSolve,
+                                     MOI.SupportsDeleteVariable,
+                                     MOI.SupportsDeleteConstraint}) = true
 
 abstract type AbstractSDSolverInstance <: MOI.AbstractSolverInstance end
 
@@ -157,12 +157,12 @@ MOI.canget(m::SOItoMOIBridge, ::MOI.ResultCount) = true
 MOI.get(m::SOItoMOIBridge, ::MOI.ResultCount) = 1
 
 MOI.canget(m::SOItoMOIBridge, ::Union{MOI.VariablePrimal,
-                                               MOI.ConstraintPrimal,
-                                               MOI.ConstraintDual}, ref::Union{CR, VR}) = true
+                                      MOI.ConstraintPrimal,
+                                      MOI.ConstraintDual}, ref::Union{CR, VR}) = true
 
 MOI.canget(m::SOItoMOIBridge, ::Union{MOI.VariablePrimal,
-                                               MOI.ConstraintPrimal,
-                                               MOI.ConstraintDual}, ref::Vector{R}) where R <: Union{CR, VR} = true
+                                      MOI.ConstraintPrimal,
+                                      MOI.ConstraintDual}, ref::Vector{R}) where R <: Union{CR, VR} = true
 
 
 function MOI.get(m::SOItoMOIBridge, ::MOI.VariablePrimal, vr::VR)
