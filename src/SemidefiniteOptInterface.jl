@@ -205,6 +205,12 @@ end
 function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR)
     _getattribute(m, cr, getslack) + _getconstant(m, MOI.get(m, MOI.ConstraintSet(), cr))
 end
+# These constraints do not create any constraint or slack, it is just variables
+_getvarprimal(m, sv::SVF) = MOI.get(m, MOI.VariablePrimal(), sv.variable)
+_getvarprimal(m, vv::VVF) = MOI.get(m, MOI.VariablePrimal(), vv.variables)
+function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR{<:VF, <:Union{NS, PS, DS}})
+    _getvarprimal(m, MOI.get(m, MOI.ConstraintFunction(), cr))
+end
 
 function getvardual(m::SOItoMOIBridge, vi::UInt64)
     Z = getZ(m.sdsolver)
