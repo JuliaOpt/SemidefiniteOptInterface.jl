@@ -126,11 +126,6 @@ function _SOCtoPSDCaff{T}(f::MOI.VectorAffineFunction{T}, g::MOI.ScalarAffineFun
     MOI.VectorAffineFunction(outputindex, variables, coefficients, constant)
 end
 
-function Base.getindex(f::MOI.VectorAffineFunction, i)
-    I = find(oi -> oi == i, f.outputindex)
-    MOI.ScalarAffineFunction(f.variables[I], f.coefficients[I], f.constant[i])
-end
-
 # (t, x) is transformed into the matrix
 # [t  x']
 # [x t*I]
@@ -151,7 +146,7 @@ function SOCtoPSDCBridge(instance, f, s::MOI.SecondOrderCone)
 end
 
 _SOCtoPSDCaff(f::MOI.VectorOfVariables) = _SOCtoPSDCaff(tofun(f))
-_SOCtoPSDCaff(f::MOI.VectorAffineFunction) = _SOCtoPSDCaff(f, f[1])
+_SOCtoPSDCaff(f::MOI.VectorAffineFunction) = _SOCtoPSDCaff(f, MOIU.eachscalar(f)[1])
 
 function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::SOCtoPSDCBridge)
     MOI.get(instance, MOI.ConstraintPrimal(), c.cr)[trimap.(1:c.dim, 1)]
@@ -184,9 +179,9 @@ end
 _RSOCtoPSDCaff(f::MOI.VectorOfVariables) = _RSOCtoPSDCaff(tofun(f))
 function _RSOCtoPSDCaff(f::MOI.VectorAffineFunction)
     n = length(f.constant)
-    g = f[2]
+    g = MOIU.eachscalar(f)[2]
     g = MOI.ScalarAffineFunction(g.variables, g.coefficients*2, g.constant*2)
-    _SOCtoPSDCaff(f[[1; 3:n]], g)
+    _SOCtoPSDCaff(MOIU.eachscalar(f)[[1; 3:n]], g)
 end
 
 function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::RSOCtoPSDCBridge)
