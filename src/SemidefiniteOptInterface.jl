@@ -5,7 +5,7 @@ const MOI = MathOptInterface
 
 using MathOptInterfaceUtilities
 const MOIU = MathOptInterfaceUtilities
-MOIU.@instance SDInstance () (EqualTo, GreaterThan, LessThan, Interval) (Zeros, Nonnegatives, Nonpositives, SecondOrderCone, RotatedSecondOrderCone, PositiveSemidefiniteConeTriangle, PositiveSemidefiniteConeScaled) () (SingleVariable,) (ScalarAffineFunction,) (VectorOfVariables,) (VectorAffineFunction,)
+MOIU.@instance SDInstance () (EqualTo, GreaterThan, LessThan) (Zeros, Nonnegatives, Nonpositives, PositiveSemidefiniteConeTriangle) () (SingleVariable,) (ScalarAffineFunction,) (VectorOfVariables,) (VectorAffineFunction,)
 
 abstract type AbstractSDSolver <: MOI.AbstractSolver end
 
@@ -31,18 +31,15 @@ const AVF{T} = Union{VVF, VAF{T}}
 const ZS = Union{MOI.EqualTo, MOI.Zeros}
 const NS = Union{MOI.GreaterThan, MOI.Nonnegatives}
 const PS = Union{MOI.LessThan, MOI.Nonpositives}
-const IL = MOI.Interval
-const CS = MOI.PositiveSemidefiniteConeScaled
-const SO = MOI.SecondOrderCone
-const RS = MOI.RotatedSecondOrderCone
 const DS = MOI.PositiveSemidefiniteConeTriangle
 const SupportedSets = Union{ZS, NS, PS, DS}
-const BridgedSets = Union{IL, CS, SO, RS}
+const BridgedSets = Union{MOI.Interval,
+                          MOI.SecondOrderCone,
+                          MOI.RotatedSecondOrderCone,
+                          MOI.PositiveSemidefiniteConeScaled}
 
 const VR = MOI.VariableReference
 const CR{FT, ST} = MOI.ConstraintReference{FT, ST}
-
-include("setbridges.jl")
 
 mutable struct SOItoMOIBridge{ST <: AbstractSDSolver, SIT <: AbstractSDSolverInstance} <: MOI.AbstractSolverInstance
     solver::ST
@@ -57,13 +54,6 @@ mutable struct SOItoMOIBridge{ST <: AbstractSDSolver, SIT <: AbstractSDSolverIns
     varmap::Vector{Vector{Tuple{Int, Int, Int, Float64, Float64}}} # Variable Reference value vi -> blk, i, j, coef, shift # x = sum coef * X[blk][i, j] + shift
     constrmap::Vector{UnitRange{Int}} # Constraint Reference value ci -> cs
     slackmap::Vector{Tuple{Int, Int, Int, Float64}} # c -> blk, i, j, coef
-    # Bridges
-    bridgemap::Vector{Int}
-    int::Vector{SplitIntervalBridge{Float64}}
-    psdcs::Vector{PSDCScaledBridge{Float64}}
-    soc::Vector{SOCtoPSDCBridge{Float64}}
-    rsoc::Vector{RSOCtoPSDCBridge{Float64}}
-    double::Vector{CR} # created when there are two cones for same variable
     function SOItoMOIBridge(solver::ST, sdsolver::SIT) where {ST, SIT}
         new{ST, SIT}(solver, SDInstance{Float64}(), sdsolver,
             0.0, 0, 0, 0,
@@ -71,20 +61,20 @@ mutable struct SOItoMOIBridge{ST <: AbstractSDSolver, SIT <: AbstractSDSolverIns
             IntSet(),
             Vector{Tuple{Int,Int,Int,Float64}}[],
             UnitRange{Int}[],
-            Tuple{Int, Int, Int, Float64}[],
-            Int[],
-            SplitIntervalBridge{Float64}[],
-            PSDCScaledBridge{Float64}[],
-            SOCtoPSDCBridge{Float64}[],
-            RSOCtoPSDCBridge{Float64}[],
-            CR[])
+            Tuple{Int, Int, Int, Float64}[])
     end
     function SOItoMOIBridge(solver::ST) where ST
         SOItoMOIBridge(solver, SDSolverInstance(solver))
     end
 end
 
-MOI.SolverInstance(s::AbstractSDSolver) = SOItoMOIBridge(s)
+include("setbridges.jl")
+@bridge SplitInterval MOIU.SplitIntervalBridge () (Interval,) () () () (ScalarAffineFunction,) () ()
+@bridge PSDCScaled PSDCScaledBridge () () (PositiveSemidefiniteConeScaled,) () () () (VectorOfVariables,) (VectorAffineFunction,)
+@bridge SOCtoPSDC SOCtoPSDCBridge () () (SecondOrderCone,) () () () (VectorOfVariables,) (VectorAffineFunction,)
+@bridge RSOCtoPSDC RSOCtoPSDCBridge () () (RotatedSecondOrderCone,) () () () (VectorOfVariables,) (VectorAffineFunction,)
+
+MOI.SolverInstance(s::AbstractSDSolver) = PSDCScaled{Float64}(RSOCtoPSDC{Float64}(SOCtoPSDC{Float64}(SplitInterval{Float64}(SOItoMOIBridge(s)))))
 
 MOI.supportsproblem(m::AbstractSDSolver, ::Type{<:MOI.AbstractFunction}, constrtypes) = false
 
@@ -244,36 +234,5 @@ end
 function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR{F, DS}) where F
     scalevec!(_getattribute(m, cr, getdual), 1/2)
 end
-
-# Bridges
-
-function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintDual, cr::CR{F, IL{Float64}}) where F
-    MOI.get(m, a, m.int[m.bridgemap[cr.value]])
-end
-function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR{F, IL{Float64}}) where F
-    MOI.get(m, a, m.int[m.bridgemap[cr.value]])
-end
-
-function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintDual, cr::CR{F, CS}) where F
-    MOI.get(m, a, m.psdcs[m.bridgemap[cr.value]])
-end
-function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR{F, CS}) where F
-    MOI.get(m, a, m.psdcs[m.bridgemap[cr.value]])
-end
-
-function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintDual, cr::CR{F, SO}) where F
-    MOI.get(m, a, m.soc[m.bridgemap[cr.value]])
-end
-function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR{F, SO}) where F
-    MOI.get(m, a, m.soc[m.bridgemap[cr.value]])
-end
-
-function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintDual, cr::CR{F, RS}) where F
-    MOI.get(m, a, m.rsoc[m.bridgemap[cr.value]])
-end
-function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR{F, RS}) where F
-    MOI.get(m, a, m.rsoc[m.bridgemap[cr.value]])
-end
-
 
 end # module

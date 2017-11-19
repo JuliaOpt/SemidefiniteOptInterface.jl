@@ -1,34 +1,3 @@
-# l ≤ ⟨a, x⟩ + α ≤ u
-# is transformed into
-# ⟨a, x⟩ + α ≥ l
-# ⟨a, x⟩ + α ≤ u
-struct SplitIntervalBridge{T}
-    lower::CR{MOI.ScalarAffineFunction{T}, MOI.GreaterThan{T}}
-    upper::CR{MOI.ScalarAffineFunction{T}, MOI.LessThan{T}}
-end
-function SplitIntervalBridge(instance, f, s::MOI.Interval)
-    lower = MOI.addconstraint!(instance, f, MOI.GreaterThan(s.lower))
-    upper = MOI.addconstraint!(instance, f, MOI.LessThan(s.upper))
-    SplitIntervalBridge(lower, upper)
-end
-function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::SplitIntervalBridge)
-    # lower and upper should give the same value
-    MOI.get(instance, MOI.ConstraintPrimal(), c.lower)
-end
-function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintDual, c::SplitIntervalBridge)
-    lowd = MOI.get(instance, MOI.ConstraintDual(), c.lower) # Should be nonnegative
-    uppd = MOI.get(instance, MOI.ConstraintDual(), c.upper) # Should be nonpositive
-    if lowd > -uppd
-        lowd
-    else
-        uppd
-    end
-end
-function MOI.delete!(instance::MOI.AbstractInstance, c::SplitIntervalBridge)
-    MOI.delete!(instance, c.lower)
-    MOI.delete!(instance, c.upper)
-end
-
 function tofun(f::MOI.VectorOfVariables)
     nv = length(f.variables)
     MOI.VectorAffineFunction(collect(1:nv), f.variables, ones(nv), zeros(nv))
@@ -72,6 +41,8 @@ function PSDCScaledBridge(instance, f, s::MOI.PositiveSemidefiniteConeScaled)
     cr = MOI.addconstraint!(instance, unscalefunction(f, diagidx), MOI.PositiveSemidefiniteConeTriangle(dim))
     PSDCScaledBridge(dim, diagidx, cr)
 end
+MOI.get(::PSDCScaledBridge, ::MOI.NumberOfConstraints) = 0
+MOI.get(::PSDCScaledBridge{T}, ::MOI.NumberOfConstraints{MOI.VectorAffineFunction{T}, MOI.PositiveSemidefiniteConeTriangle}) where T = 1
 function scalevec!(v, c)
     d = div(isqrt(1+8length(v))-1, 2)
     @assert div(d*(d+1), 2) == length(v)
@@ -84,9 +55,11 @@ function scalevec!(v, c)
     end
     v
 end
+MOI.canget(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::PSDCScaledBridge) = true
 function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::PSDCScaledBridge)
     scalevec!(MOI.get(instance, MOI.ConstraintPrimal(), c.cr), sqrt(2))
 end
+MOI.canget(instance::MOI.AbstractInstance, a::MOI.ConstraintDual, c::PSDCScaledBridge) = true
 function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintDual, c::PSDCScaledBridge)
     scalevec!(MOI.get(instance, MOI.ConstraintDual(), c.cr), sqrt(2))
 end
@@ -144,13 +117,17 @@ function SOCtoPSDCBridge(instance, f, s::MOI.SecondOrderCone)
     cr = MOI.addconstraint!(instance, _SOCtoPSDCaff(f), MOI.PositiveSemidefiniteConeTriangle(d))
     SOCtoPSDCBridge(d, cr)
 end
+MOI.get(::SOCtoPSDCBridge, ::MOI.NumberOfConstraints) = 0
+MOI.get(::SOCtoPSDCBridge{T}, ::MOI.NumberOfConstraints{MOI.VectorAffineFunction{T}, MOI.PositiveSemidefiniteConeTriangle}) where T = 1
 
 _SOCtoPSDCaff(f::MOI.VectorOfVariables) = _SOCtoPSDCaff(tofun(f))
 _SOCtoPSDCaff(f::MOI.VectorAffineFunction) = _SOCtoPSDCaff(f, MOIU.eachscalar(f)[1])
 
+MOI.canget(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::SOCtoPSDCBridge) = true
 function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::SOCtoPSDCBridge)
     MOI.get(instance, MOI.ConstraintPrimal(), c.cr)[trimap.(1:c.dim, 1)]
 end
+MOI.canget(instance::MOI.AbstractInstance, a::MOI.ConstraintDual, c::SOCtoPSDCBridge) = true
 function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintDual, c::SOCtoPSDCBridge)
     dual = MOI.get(instance, MOI.ConstraintDual(), c.cr)
     tdual = sum(i -> dual[trimap(i, i)], 1:c.dim)
@@ -175,6 +152,8 @@ function RSOCtoPSDCBridge(instance, f, s::MOI.RotatedSecondOrderCone)
     cr = MOI.addconstraint!(instance, _RSOCtoPSDCaff(f), MOI.PositiveSemidefiniteConeTriangle(d))
     RSOCtoPSDCBridge(d, cr)
 end
+MOI.get(::RSOCtoPSDCBridge, ::MOI.NumberOfConstraints) = 0
+MOI.get(::RSOCtoPSDCBridge{T}, ::MOI.NumberOfConstraints{MOI.VectorAffineFunction{T}, MOI.PositiveSemidefiniteConeTriangle}) where T = 1
 
 _RSOCtoPSDCaff(f::MOI.VectorOfVariables) = _RSOCtoPSDCaff(tofun(f))
 function _RSOCtoPSDCaff(f::MOI.VectorAffineFunction)
@@ -184,11 +163,13 @@ function _RSOCtoPSDCaff(f::MOI.VectorAffineFunction)
     _SOCtoPSDCaff(MOIU.eachscalar(f)[[1; 3:n]], g)
 end
 
+MOI.canget(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::RSOCtoPSDCBridge) = true
 function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::RSOCtoPSDCBridge)
     x = MOI.get(instance, MOI.ConstraintPrimal(), c.cr)[[trimap(1, 1); trimap(2, 2); trimap.(2:c.dim, 1)]]
     x[2] /= 2 # It is (2u*I)[1,1] so it needs to be divided by 2 to get u
     x
 end
+MOI.canget(instance::MOI.AbstractInstance, a::MOI.ConstraintDual, c::RSOCtoPSDCBridge) = true
 function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintDual, c::RSOCtoPSDCBridge)
     dual = MOI.get(instance, MOI.ConstraintDual(), c.cr)
     udual = sum(i -> dual[trimap(i, i)], 2:c.dim)
