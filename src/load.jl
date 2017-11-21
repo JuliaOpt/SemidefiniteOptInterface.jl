@@ -70,6 +70,10 @@ end
 _broadcastcall(f, m) = MOIU.broadcastcall(constrs -> f(m, constrs), m.sdinstance)
 
 function loadprimal!(m::SOItoMOIBridge)
+    for s in m.double
+        MOI.delete!(m, s)
+    end
+    m.double = CR[]
     initvariables!(m)
     _broadcastcall(loadvariables!, m)
     loadfreevariables!(m)

@@ -45,6 +45,7 @@ mutable struct SOItoMOIBridge{T, SIT <: AbstractSDSolverInstance} <: MOI.Abstrac
     varmap::Vector{Vector{Tuple{Int, Int, Int, Float64, Float64}}} # Variable Reference value vi -> blk, i, j, coef, shift # x = sum coef * X[blk][i, j] + shift
     constrmap::Vector{UnitRange{Int}} # Constraint Reference value ci -> cs
     slackmap::Vector{Tuple{Int, Int, Int, T}} # c -> blk, i, j, coef
+    double::Vector{CR} # created when there are two cones for same variable
     function SOItoMOIBridge{T}(sdsolver::SIT) where {T, SIT}
         new{T, SIT}(SDInstance{T}(), sdsolver,
             0.0, 0, 0, 0,
@@ -52,7 +53,8 @@ mutable struct SOItoMOIBridge{T, SIT <: AbstractSDSolverInstance} <: MOI.Abstrac
             IntSet(),
             Vector{Tuple{Int, Int, Int, T}}[],
             UnitRange{Int}[],
-            Tuple{Int, Int, Int, T}[])
+            Tuple{Int, Int, Int, T}[],
+            Float64[])
     end
 end
 
