@@ -7,27 +7,7 @@ function numberconstraint!(m::SOItoMOIBridge, cr, f, s)
     m.constr += n
 end
 
-function bridgeconstraint!(m, cr, f, s::MOI.Interval)
-    push!(m.int, SplitIntervalBridge(m, f, s))
-    m.bridgemap[cr.value] = length(m.int)
-end
-
-function bridgeconstraint!(m, cr, f, s::MOI.PositiveSemidefiniteConeScaled)
-    push!(m.psdcs, PSDCScaledBridge(m, f, s))
-    m.bridgemap[cr.value] = length(m.psdcs)
-end
-
-function bridgeconstraint!(m, cr, f, s::MOI.SecondOrderCone)
-    push!(m.soc, SOCtoPSDCBridge(m, f, s))
-    m.bridgemap[cr.value] = length(m.soc)
-end
-
-function bridgeconstraint!(m, cr, f, s::MOI.RotatedSecondOrderCone)
-    push!(m.rsoc, RSOCtoPSDCBridge(m, f, s))
-    m.bridgemap[cr.value] = length(m.rsoc)
-end
-
-for (f, SS) in ((:loadvariable, :SupportedSets), (:loadconstraint, :SupportedSets), (:createslack, :SupportedSets), (:numberconstraint, :SupportedSets), (:bridgeconstraint, :BridgedSets))
+for (f, SS) in ((:loadvariable, :SupportedSets), (:loadconstraint, :SupportedSets), (:createslack, :SupportedSets), (:numberconstraint, :SupportedSets))
     funs = Symbol(string(f) * "s!")
     fun = Symbol(string(f) * "!")
     @eval begin
@@ -71,31 +51,6 @@ nconstraints(cs::Vector) = sum(nconstraints.(cs))
 nconstraints{F<:SAF, S<:SupportedSets}(cs::Vector{MOIU.C{F, S}}) = length(cs)
 nconstraints{F<:SVF, S<:ZS}(cs::Vector{MOIU.C{F, S}}) = length(cs)
 nconstraints{F<:SVF, S<:SupportedSets}(cs::Vector{MOIU.C{F, S}}) = 0
-nconstraints{F, S<:BridgedSets}(cs::Vector{MOIU.C{F, S}}) = 0
-
-function resetbridges!(m)
-    for s in m.int
-        MOI.delete!(m, s)
-    end
-    for s in m.psdcs
-        MOI.delete!(m, s)
-    end
-    for s in m.soc
-        MOI.delete!(m, s)
-    end
-    for s in m.rsoc
-        MOI.delete!(m, s)
-    end
-    for s in m.double
-        MOI.delete!(m, s)
-    end
-    m.bridgemap = Vector{Int}(m.sdinstance.nextconstraintid)
-    m.int = SplitIntervalBridge{Float64}[]
-    m.psdcs = PSDCScaledBridge{Float64}[]
-    m.soc = SOCtoPSDCBridge{Float64}[]
-    m.rsoc = RSOCtoPSDCBridge{Float64}[]
-    m.double = CR[]
-end
 
 function initvariables!(m::SOItoMOIBridge)
     m.objshift = 0.0
@@ -115,8 +70,6 @@ end
 _broadcastcall(f, m) = MOIU.broadcastcall(constrs -> f(m, constrs), m.sdinstance)
 
 function loadprimal!(m::SOItoMOIBridge)
-    resetbridges!(m)
-    _broadcastcall(bridgeconstraints!, m)
     initvariables!(m)
     _broadcastcall(loadvariables!, m)
     loadfreevariables!(m)
