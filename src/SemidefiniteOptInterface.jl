@@ -7,14 +7,6 @@ using MathOptInterfaceUtilities
 const MOIU = MathOptInterfaceUtilities
 MOIU.@instance SDInstance () (EqualTo, GreaterThan, LessThan) (Zeros, Nonnegatives, Nonpositives, PositiveSemidefiniteConeTriangle) () (SingleVariable,) (ScalarAffineFunction,) (VectorOfVariables,) (VectorAffineFunction,)
 
-abstract type AbstractSDSolver <: MOI.AbstractSolver end
-
-MOI.get(m::AbstractSDSolver, ::Union{MOI.SupportsDuals,
-                                     MOI.SupportsAddVariableAfterSolve,
-                                     MOI.SupportsAddConstraintAfterSolve,
-                                     MOI.SupportsDeleteVariable,
-                                     MOI.SupportsDeleteConstraint}) = true
-
 abstract type AbstractSDSolverInstance <: MOI.AbstractSolverInstance end
 
 include("interface.jl")
@@ -41,11 +33,10 @@ const BridgedSets = Union{MOI.Interval,
 const VR = MOI.VariableReference
 const CR{FT, ST} = MOI.ConstraintReference{FT, ST}
 
-mutable struct SOItoMOIBridge{ST <: AbstractSDSolver, SIT <: AbstractSDSolverInstance} <: MOI.AbstractSolverInstance
-    solver::ST
-    sdinstance::SDInstance{Float64}
+mutable struct SOItoMOIBridge{T, SIT <: AbstractSDSolverInstance} <: MOI.AbstractSolverInstance
+    sdinstance::SDInstance{T}
     sdsolver::SIT
-    objshift::Float64
+    objshift::T
     nconstrs::Int
     constr::Int
     nblocks::Int
@@ -53,36 +44,25 @@ mutable struct SOItoMOIBridge{ST <: AbstractSDSolver, SIT <: AbstractSDSolverIns
     free::IntSet
     varmap::Vector{Vector{Tuple{Int, Int, Int, Float64, Float64}}} # Variable Reference value vi -> blk, i, j, coef, shift # x = sum coef * X[blk][i, j] + shift
     constrmap::Vector{UnitRange{Int}} # Constraint Reference value ci -> cs
-    slackmap::Vector{Tuple{Int, Int, Int, Float64}} # c -> blk, i, j, coef
-    function SOItoMOIBridge(solver::ST, sdsolver::SIT) where {ST, SIT}
-        new{ST, SIT}(solver, SDInstance{Float64}(), sdsolver,
+    slackmap::Vector{Tuple{Int, Int, Int, T}} # c -> blk, i, j, coef
+    function SOItoMOIBridge{T}(sdsolver::SIT) where {T, SIT}
+        new{T, SIT}(SDInstance{T}(), sdsolver,
             0.0, 0, 0, 0,
             Int[],
             IntSet(),
-            Vector{Tuple{Int,Int,Int,Float64}}[],
+            Vector{Tuple{Int, Int, Int, T}}[],
             UnitRange{Int}[],
-            Tuple{Int, Int, Int, Float64}[])
-    end
-    function SOItoMOIBridge(solver::ST) where ST
-        SOItoMOIBridge(solver, SDSolverInstance(solver))
+            Tuple{Int, Int, Int, T}[])
     end
 end
+
+SDOIInstance(sdsolver::AbstractSDSolverInstance, ::Type{T}=Float64) where T = PSDCScaled{T}(RSOCtoPSDC{T}(SOCtoPSDC{T}(SplitInterval{T}(SOItoMOIBridge{T}(sdsolver)))))
 
 include("setbridges.jl")
 @bridge SplitInterval MOIU.SplitIntervalBridge () (Interval,) () () () (ScalarAffineFunction,) () ()
 @bridge PSDCScaled PSDCScaledBridge () () (PositiveSemidefiniteConeScaled,) () () () (VectorOfVariables,) (VectorAffineFunction,)
 @bridge SOCtoPSDC SOCtoPSDCBridge () () (SecondOrderCone,) () () () (VectorOfVariables,) (VectorAffineFunction,)
 @bridge RSOCtoPSDC RSOCtoPSDCBridge () () (RotatedSecondOrderCone,) () () () (VectorOfVariables,) (VectorAffineFunction,)
-
-MOI.SolverInstance(s::AbstractSDSolver) = PSDCScaled{Float64}(RSOCtoPSDC{Float64}(SOCtoPSDC{Float64}(SplitInterval{Float64}(SOItoMOIBridge(s)))))
-
-MOI.supportsproblem(m::AbstractSDSolver, ::Type{<:MOI.AbstractFunction}, constrtypes) = false
-
-_supports(x::Type, y::Type) = false
-function _supports(::Type{<:Union{VF, AF}}, ::Type{<:Union{SupportedSets, BridgedSets}})
-    true
-end
-MOI.supportsproblem(m::AbstractSDSolver, ::Type{<:SAF}, constrtypes) = reduce((b, ct) -> b & _supports(ct...), true, constrtypes)
 
 include("load.jl")
 

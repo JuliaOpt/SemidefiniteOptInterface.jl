@@ -1,11 +1,4 @@
 """
-    SDSolverInstance(s::AbstractSDSolver)
-
-Creates an solver instance.
-"""
-function SDSolverInstance end
-
-"""
     initinstance!(s::AbstractSDSolverInstance, blkdims::Vector{Int}, nconstrs::Integer)
 
 Initialize the instance with nconstrs constraints and blkdims blocks.
