@@ -58,13 +58,15 @@ mutable struct SOItoMOIBridge{T, SIT <: AbstractSDSolverInstance} <: MOI.Abstrac
     end
 end
 
-SDOIInstance(sdsolver::AbstractSDSolverInstance, ::Type{T}=Float64) where T = PSDCScaled{T}(RSOCtoPSDC{T}(SOCtoPSDC{T}(SplitInterval{T}(SOItoMOIBridge{T}(sdsolver)))))
+SDOIInstance(sdsolver::AbstractSDSolverInstance, ::Type{T}=Float64) where T = RootDet{T}(PSDCScaled{T}(GeoMean{T}(RSOCtoPSDC{T}(SOCtoPSDC{T}(SplitInterval{T}(SOItoMOIBridge{T}(sdsolver)))))))
 
 include("setbridges.jl")
 @bridge SplitInterval MOIU.SplitIntervalBridge () (Interval,) () () () (ScalarAffineFunction,) () ()
 @bridge PSDCScaled PSDCScaledBridge () () (PositiveSemidefiniteConeScaled,) () () () (VectorOfVariables,) (VectorAffineFunction,)
 @bridge SOCtoPSDC SOCtoPSDCBridge () () (SecondOrderCone,) () () () (VectorOfVariables,) (VectorAffineFunction,)
 @bridge RSOCtoPSDC RSOCtoPSDCBridge () () (RotatedSecondOrderCone,) () () () (VectorOfVariables,) (VectorAffineFunction,)
+@bridge GeoMean MOIU.GeoMeanBridge () () (GeometricMeanCone,) () () () (VectorOfVariables,) (VectorAffineFunction,)
+@bridge RootDet MOIU.RootDetBridge () () (RootDetConeTriangle,) () () () (VectorOfVariables,) (VectorAffineFunction,)
 
 include("load.jl")
 
@@ -78,7 +80,9 @@ MOI.addvariables!(m::SOItoMOIBridge, n::Integer) = MOI.addvariables!(m.sdinstanc
 MOI.isvalid(m::SOItoMOIBridge, r::Union{VR, CR}) = MOI.isvalid(m.sdinstance, r)
 MOI.candelete(m::SOItoMOIBridge, r::Union{VR, CR}) = MOI.candelete(m.sdinstance, r)
 MOI.delete!(m::SOItoMOIBridge, r::Union{VR, CR}) = MOI.delete!(m.sdinstance, r)
-MOI.addconstraint!(m::SOItoMOIBridge, f::Union{ASF, AVF}, s) = MOI.addconstraint!(m.sdinstance, f, s)
+function MOI.addconstraint!(m::SOItoMOIBridge, f::Union{ASF, AVF}, s)
+    MOI.addconstraint!(m.sdinstance, f, s)
+end
 
 const InstanceAttributeRef = Union{MOI.ConstraintFunction, MOI.ConstraintSet}
 MOI.canget(m::SOItoMOIBridge, a::InstanceAttributeRef, ref::CR) = MOI.canget(m.sdinstance, a, ref)

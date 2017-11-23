@@ -30,7 +30,7 @@ function unscalefunction(f::MOI.VectorAffineFunction, diagidx)
     end
     g = MOI.VectorAffineFunction(outputindex, variables, coefficients, constant)
 end
-function PSDCScaledBridge(instance, f, s::MOI.PositiveSemidefiniteConeScaled)
+function PSDCScaledBridge{T}(instance, f, s::MOI.PositiveSemidefiniteConeScaled) where T
     dim = MOI.dimension(s)
     diagidx = IntSet()
     i = 0
@@ -112,7 +112,7 @@ struct SOCtoPSDCBridge{T}
     dim::Int
     cr::CR{MOI.VectorAffineFunction{T}, MOI.PositiveSemidefiniteConeTriangle}
 end
-function SOCtoPSDCBridge(instance, f, s::MOI.SecondOrderCone)
+function SOCtoPSDCBridge{T}(instance, f, s::MOI.SecondOrderCone) where T
     d = MOI.dimension(s)
     cr = MOI.addconstraint!(instance, _SOCtoPSDCaff(f), MOI.PositiveSemidefiniteConeTriangle(d))
     SOCtoPSDCBridge(d, cr)
@@ -147,7 +147,7 @@ struct RSOCtoPSDCBridge{T}
     dim::Int
     cr::CR{MOI.VectorAffineFunction{T}, MOI.PositiveSemidefiniteConeTriangle}
 end
-function RSOCtoPSDCBridge(instance, f, s::MOI.RotatedSecondOrderCone)
+function RSOCtoPSDCBridge{T}(instance, f, s::MOI.RotatedSecondOrderCone) where T
     d = MOI.dimension(s)-1
     cr = MOI.addconstraint!(instance, _RSOCtoPSDCaff(f), MOI.PositiveSemidefiniteConeTriangle(d))
     RSOCtoPSDCBridge(d, cr)
