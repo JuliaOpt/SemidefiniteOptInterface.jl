@@ -11,12 +11,8 @@ const MOIT = MathOptInterfaceTests
 const config = MOIT.TestConfig(1e-5, 1e-5, true, true, true)
 
 @testset "Linear tests with $solver" for solver in solvers
-    #MOIT.contlineartest(solver, config)
+    MOIT.contlineartest(solver, config)
 end
 @testset "Conic tests with $solver" for solver in solvers
-    #MOIT.geomean1vtest(solver, config)
-    #MOIT.geomean1ftest(solver, config)
-    #MOIT.rootdet1tvtest(solver, config)
-    MOIT.rootdet1tftest(solver, config)
-    #MOIT.contconictest(solver, config, ["geomean", "logdet", "rootdet"])
+    MOIT.contconictest(solver, config, ["logdet", "rootdet1qv", "rootdet1qf"])
 end
