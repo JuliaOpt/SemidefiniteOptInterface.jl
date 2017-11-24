@@ -16,13 +16,13 @@ struct PSDCScaledBridge{T}
     cr::CR{MOI.VectorAffineFunction{T}, MOI.PositiveSemidefiniteConeTriangle}
 end
 unscalefunction(f::MOI.VectorOfVariables, diagidx) = unscalefunction(tofun(f), diagidx)
-function unscalefunction(f::MOI.VectorAffineFunction, diagidx)
+function unscalefunction(f::MOI.VectorAffineFunction{T}, diagidx) where T
     outputindex = f.outputindex
     variables = f.variables
     coefficients = copy(f.coefficients)
     constant = copy(f.constant)
-    s2 = sqrt(2)
-    scalevec!(constant, 1/s2)
+    s2 = sqrt(T(2))
+    scalevec!(constant, one(T)/s2)
     for i in eachindex(outputindex)
         if !(outputindex[i] in diagidx)
             coefficients[i] /= s2
@@ -56,12 +56,12 @@ function scalevec!(v, c)
     v
 end
 MOI.canget(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::PSDCScaledBridge) = true
-function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::PSDCScaledBridge)
-    scalevec!(MOI.get(instance, MOI.ConstraintPrimal(), c.cr), sqrt(2))
+function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::PSDCScaledBridge{T}) where T
+    scalevec!(MOI.get(instance, MOI.ConstraintPrimal(), c.cr), sqrt(T(2)))
 end
 MOI.canget(instance::MOI.AbstractInstance, a::MOI.ConstraintDual, c::PSDCScaledBridge) = true
-function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintDual, c::PSDCScaledBridge)
-    scalevec!(MOI.get(instance, MOI.ConstraintDual(), c.cr), sqrt(2))
+function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintDual, c::PSDCScaledBridge{T}) where T
+    scalevec!(MOI.get(instance, MOI.ConstraintDual(), c.cr), sqrt(T(2)))
 end
 
 function trimap(i, j)
