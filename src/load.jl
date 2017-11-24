@@ -52,13 +52,13 @@ nconstraints{F<:SAF, S<:SupportedSets}(cs::Vector{MOIU.C{F, S}}) = length(cs)
 nconstraints{F<:SVF, S<:ZS}(cs::Vector{MOIU.C{F, S}}) = length(cs)
 nconstraints{F<:SVF, S<:SupportedSets}(cs::Vector{MOIU.C{F, S}}) = 0
 
-function initvariables!(m::SOItoMOIBridge)
-    m.objshift = 0.0
+function initvariables!(m::SOItoMOIBridge{T}) where T
+    m.objshift = zero(T)
     m.constr = 0
     m.nblocks = 0
     m.blockdims = Int[]
     m.free = IntSet(1:m.sdinstance.nextvariableid)
-    m.varmap = Vector{Vector{Tuple{Int,Int,Int,Float64,Float64}}}(m.sdinstance.nextvariableid)
+    m.varmap = Vector{Vector{Tuple{Int,Int,Int,T,T}}}(m.sdinstance.nextvariableid)
 end
 
 function initconstraints!(m::SOItoMOIBridge)
