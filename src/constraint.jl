@@ -1,5 +1,5 @@
-function createslack!(m::SOItoMOIBridge, cs, ::ZS)
-    m.slackmap[cs] = (0, 0, 0, 0.)
+function createslack!(m::SOItoMOIBridge{T}, cs, ::ZS) where T
+    m.slackmap[cs] = (0, 0, 0, zero(T))
 end
 function createslack!(m::SOItoMOIBridge, cs, ::S) where S <: Union{NS, PS}
     blk = newblock(m, -length(cs))
@@ -7,14 +7,14 @@ function createslack!(m::SOItoMOIBridge, cs, ::S) where S <: Union{NS, PS}
         m.slackmap[c] = (blk, i, i, vscaling(S))
     end
 end
-function createslack!(m::SOItoMOIBridge, cs, ::DS)
+function createslack!(m::SOItoMOIBridge{T}, cs, ::DS) where T
     d = getmatdim(length(cs))
     k = 0
     blk = newblock(m, d)
     for i in 1:d
         for j in 1:i
             k += 1
-            m.slackmap[cs[k]] = (blk, i, j, i == j ? 1. : .5)
+            m.slackmap[cs[k]] = (blk, i, j, i == j ? one(T) : one(T)/2)
         end
     end
 end
@@ -43,7 +43,7 @@ _row(f::SAF, i) = 1
 _row(f::VAF, i) = f.outputindex[i]
 
 _getconstant(m::SOItoMOIBridge, s::MOI.AbstractScalarSet) = MOIU.getconstant(s)
-_getconstant(m::SOItoMOIBridge, s::MOI.AbstractSet) = 0.0
+_getconstant(m::SOItoMOIBridge{T}, s::MOI.AbstractSet) where T = zero(T)
 
 function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange, f::AF, s)
     f = MOIU.canonical(f) # sum terms with same variables and same outputindex
@@ -76,17 +76,17 @@ end
 
 _var(f::SVF, j) = f.variable
 _var(f::VVF, j) = f.variables[j]
-function loadconstraint!(m::SOItoMOIBridge, cr::CR, f::VF, s::ZS)
+function loadconstraint!(m::SOItoMOIBridge{T}, cr::CR, f::VF, s::ZS) where T
     cs = m.constrmap[cr.value]
     for j in length(cs)
         vm = m.varmap[_var(f, j).value]
         @assert length(vm) == 1
         (blk, i, j, coef, shift) = first(vm)
-        @assert coef == 1.0
+        @assert coef == one(T)
         @assert s isa MOI.Zeros || shift == s.value
         c = cs[j]
-        setconstraintcoefficient!(m.sdsolver, 1.0, c, blk, i, j)
-        setconstraintconstant!(m.sdsolver, 0.0, c)
+        setconstraintcoefficient!(m.sdsolver, one(T), c, blk, i, j)
+        setconstraintconstant!(m.sdsolver, zero(T), c)
     end
 end
 function loadconstraint!(m::SOItoMOIBridge, cr::CR, f::VF, s) end

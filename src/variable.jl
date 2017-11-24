@@ -12,15 +12,15 @@ function unfree(m, v)
     delete!(m.free, v)
 end
 
-function loadvariable!(m::SOItoMOIBridge, vs::VIS, s::ZS)
+function loadvariable!(m::SOItoMOIBridge{T}, vs::VIS, s::ZS) where T
     blk = newblock(m, -length(vs))
     for (i, v) in enumerate(vs)
-        m.varmap[v] = [(blk, i, i, 1.0, _getconstant(m, s))]
+        m.varmap[v] = [(blk, i, i, one(T), _getconstant(m, s))]
         unfree(m, v)
     end
 end
-vscaling(::Type{<:NS}) = 1.
-vscaling(::Type{<:PS}) = -1.
+vscaling(::Type{<:NS}) = 1
+vscaling(::Type{<:PS}) = -1
 function loadvariable!{S<:Union{NS, PS}}(m::SOItoMOIBridge, vs::VIS, s::S)
     blk = newblock(m, -length(vs))
     for (i, v) in enumerate(vs)
@@ -38,24 +38,24 @@ function getmatdim(k::Integer)
     end
     n
 end
-function loadvariable!(m::SOItoMOIBridge, vs::VIS, ::DS)
+function loadvariable!(m::SOItoMOIBridge{T}, vs::VIS, ::DS) where T
     d = getmatdim(length(vs))
     k = 0
     blk = newblock(m, d)
     for i in 1:d
         for j in 1:i
             k += 1
-            m.varmap[vs[k]] = [(blk, i, j, i == j ? 1.0 : 0.5, 0.0)]
+            m.varmap[vs[k]] = [(blk, i, j, i == j ? one(T) : one(T)/2, zero(T))]
             unfree(m, vs[k])
         end
     end
 end
-function loadvariable!(m::SOItoMOIBridge, cr, constr::SVF, s)
+function loadvariable!(m::SOItoMOIBridge{T}, cr, constr::SVF, s) where T
     vs = constr.variable.value
     if isfree(m, vs)
         loadvariable!(m, vs, s)
     else
-        push!(m.double, MOI.addconstraint!(m, MOI.ScalarAffineFunction([constr.variable], [1.], 0.), s))
+        push!(m.double, MOI.addconstraint!(m, MOI.ScalarAffineFunction([constr.variable], [one(T)], zero(T)), s))
     end
 end
 function loadvariable!(m::SOItoMOIBridge, cr, constr::VVF, s)
@@ -69,10 +69,10 @@ end
 
 function loadvariable!(m::SOItoMOIBridge, cr, constr::AF, s) end
 
-function loadfreevariables!(m::SOItoMOIBridge)
+function loadfreevariables!(m::SOItoMOIBridge{T}) where T
     for vi in m.free
         blk = newblock(m, -2)
         # x free transformed into x = y - z with y, z >= 0
-        m.varmap[vi] = [(blk, 1, 1, 1., 0.0), (blk, 2, 2, -1., 0.0)]
+        m.varmap[vi] = [(blk, 1, 1, one(T), zero(T)), (blk, 2, 2, -one(T), zero(T))]
     end
 end
