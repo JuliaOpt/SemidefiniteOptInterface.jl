@@ -27,8 +27,7 @@ const DS = MOI.PositiveSemidefiniteConeTriangle
 const SupportedSets = Union{ZS, NS, PS, DS}
 const BridgedSets = Union{MOI.Interval,
                           MOI.SecondOrderCone,
-                          MOI.RotatedSecondOrderCone,
-                          MOI.PositiveSemidefiniteConeScaled}
+                          MOI.RotatedSecondOrderCone}
 
 const VR = MOI.VariableReference
 const CR{FT, ST} = MOI.ConstraintReference{FT, ST}
@@ -58,11 +57,10 @@ mutable struct SOItoMOIBridge{T, SIT <: AbstractSDSolverInstance} <: MOI.Abstrac
     end
 end
 
-SDOIInstance(sdsolver::AbstractSDSolverInstance, T=Float64) = RootDet{T}(PSDCScaled{T}(GeoMean{T}(RSOCtoPSDC{T}(SOCtoPSDC{T}(SplitInterval{T}(SOItoMOIBridge{T}(sdsolver)))))))
+SDOIInstance(sdsolver::AbstractSDSolverInstance, T=Float64) = RootDet{T}(GeoMean{T}(RSOCtoPSDC{T}(SOCtoPSDC{T}(SplitInterval{T}(SOItoMOIBridge{T}(sdsolver))))))
 
 include("setbridges.jl")
 @bridge SplitInterval MOIU.SplitIntervalBridge () (Interval,) () () () (ScalarAffineFunction,) () ()
-@bridge PSDCScaled PSDCScaledBridge () () (PositiveSemidefiniteConeScaled,) () () () (VectorOfVariables,) (VectorAffineFunction,)
 @bridge SOCtoPSDC SOCtoPSDCBridge () () (SecondOrderCone,) () () () (VectorOfVariables,) (VectorAffineFunction,)
 @bridge RSOCtoPSDC RSOCtoPSDCBridge () () (RotatedSecondOrderCone,) () () () (VectorOfVariables,) (VectorAffineFunction,)
 @bridge GeoMean MOIU.GeoMeanBridge () () (GeometricMeanCone,) () () () (VectorOfVariables,) (VectorAffineFunction,)
@@ -216,6 +214,18 @@ function getdual(m::SOItoMOIBridge{T}, c::Int) where T
 end
 function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR)
     _getattribute(m, cr, getdual)
+end
+function scalevec!(v, c)
+    d = div(isqrt(1+8length(v))-1, 2)
+    @assert div(d*(d+1), 2) == length(v)
+    i = 1
+    for j in 1:d
+        for k in i:(i+j-2)
+            v[k] *= c
+        end
+        i += j
+    end
+    v
 end
 function MOI.get(m::SOItoMOIBridge{T}, ::MOI.ConstraintDual, cr::CR{F, DS}) where {T,F}
     scalevec!(_getattribute(m, cr, getdual), one(T)/2)

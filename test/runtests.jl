@@ -15,6 +15,6 @@ const configgeomean = MOIT.TestConfig(1e-5, 1e-5, true, true, true, true)
     MOIT.contlineartest(solver, config)
 end
 @testset "Conic tests with $solver" for solver in solvers
-    MOIT.contconictest(solver, config, ["geomean", "logdet", "rootdet1qv", "rootdet1qf"])
+    MOIT.contconictest(solver, config, ["geomean", "logdet"])
     MOIT.geomeantest(solver, configgeomean)
 end
