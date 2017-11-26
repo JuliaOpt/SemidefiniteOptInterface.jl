@@ -1,11 +1,11 @@
-# SemidefiniteOptInterface
+# SemidefiniteOptInterface (SDOI)
 
 | **Build Status** |
 |:----------------:|
 | [![Build Status][build-img]][build-url] [![Build Status][winbuild-img]][winbuild-url] |
 | [![Coveralls branch][coveralls-img]][coveralls-url] [![Codecov branch][codecov-img]][codecov-url] |
 
-This package make it easy to implement the API of [MathOptInterface](https://github.com/JuliaOpt/MathOptInterface.jl) for semidefinite programming solver like [CSDP](https://github.com/JuliaOpt/CSDP.jl), [SDPA](https://github.com/blegat/SDPA.jl) and [DSDP](https://github.com/joehuchette/DSDP.jl) that require the problem to be described in the following form:
+This package make it easy to implement the API of [MathOptInterface](https://github.com/JuliaOpt/MathOptInterface.jl) for semidefinite programming solver like [CSDP](https://github.com/JuliaOpt/CSDP.jl), [SDPA](https://github.com/blegat/SDPA.jl), [DSDP](https://github.com/joehuchette/DSDP.jl) and [SDPLR](https://github.com/blegat/SDPLR.jl) that require the problem to be described in the following form:
 ```
 max ⟨C, X⟩            min ⟨b, y⟩
     ⟨A_i, X⟩ = b_i        ∑ A_i y_i ⪯ C
