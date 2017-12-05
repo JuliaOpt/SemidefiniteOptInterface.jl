@@ -29,8 +29,8 @@ const BridgedSets = Union{MOI.Interval,
                           MOI.SecondOrderCone,
                           MOI.RotatedSecondOrderCone}
 
-const VR = MOI.VariableReference
-const CR{FT, ST} = MOI.ConstraintReference{FT, ST}
+const VI = MOI.VariableIndex
+const CI{FT, ST} = MOI.ConstraintIndex{FT, ST}
 
 mutable struct SOItoMOIBridge{T, SIT <: AbstractSDSolverInstance} <: MOI.AbstractSolverInstance
     sdinstance::SDInstance{T}
@@ -41,10 +41,10 @@ mutable struct SOItoMOIBridge{T, SIT <: AbstractSDSolverInstance} <: MOI.Abstrac
     nblocks::Int
     blockdims::Vector{Int}
     free::IntSet
-    varmap::Vector{Vector{Tuple{Int, Int, Int, T, T}}} # Variable Reference value vi -> blk, i, j, coef, shift # x = sum coef * X[blk][i, j] + shift
-    constrmap::Vector{UnitRange{Int}} # Constraint Reference value ci -> cs
+    varmap::Vector{Vector{Tuple{Int, Int, Int, T, T}}} # Variable Index value vi -> blk, i, j, coef, shift # x = sum coef * X[blk][i, j] + shift
+    constrmap::Vector{UnitRange{Int}} # Constraint Index value ci -> cs
     slackmap::Vector{Tuple{Int, Int, Int, T}} # c -> blk, i, j, coef
-    double::Vector{CR} # created when there are two cones for same variable
+    double::Vector{CI} # created when there are two cones for same variable
     function SOItoMOIBridge{T}(sdsolver::SIT) where {T, SIT}
         new{T, SIT}(SDInstance{T}(), sdsolver,
             zero(T), 0, 0, 0,
@@ -72,8 +72,6 @@ include("load.jl")
 
 # Constraints
 
-const InstanceAttributeRef = Union{MOI.ConstraintFunction, MOI.ConstraintSet}
-
 function MOI.optimize!(m::SOItoMOIBridge)
     loadprimal!(m)
     MOI.optimize!(m.sdsolver)
@@ -100,14 +98,14 @@ MOI.get(m::SOItoMOIBridge, ::MOI.ResultCount) = 1
 
 MOI.canget(m::SOItoMOIBridge, ::Union{MOI.VariablePrimal,
                                       MOI.ConstraintPrimal,
-                                      MOI.ConstraintDual}, ref::Union{CR, VR}) = true
+                                      MOI.ConstraintDual}, ref::Union{CI, VI}) = true
 
 MOI.canget(m::SOItoMOIBridge, ::Union{MOI.VariablePrimal,
                                       MOI.ConstraintPrimal,
-                                      MOI.ConstraintDual}, ref::Vector{R}) where R <: Union{CR, VR} = true
+                                      MOI.ConstraintDual}, ref::Vector{R}) where R <: Union{CI, VI} = true
 
 
-function MOI.get(m::SOItoMOIBridge{T}, ::MOI.VariablePrimal, vr::VR) where T
+function MOI.get(m::SOItoMOIBridge{T}, ::MOI.VariablePrimal, vr::VI) where T
     X = getX(m.sdsolver)
     x = zero(T)
     for (blk, i, j, coef, shift) in m.varmap[vr.value]
@@ -118,16 +116,16 @@ function MOI.get(m::SOItoMOIBridge{T}, ::MOI.VariablePrimal, vr::VR) where T
     end
     x
 end
-function MOI.get(m::SOItoMOIBridge, vp::MOI.VariablePrimal, vr::Vector{VR})
+function MOI.get(m::SOItoMOIBridge, vp::MOI.VariablePrimal, vr::Vector{VI})
     MOI.get.(m, vp, vr)
 end
 
-function _getattribute(m::SOItoMOIBridge, cr::CR{<:ASF}, f)
+function _getattribute(m::SOItoMOIBridge, cr::CI{<:ASF}, f)
     cs = m.constrmap[cr.value]
     @assert length(cs) == 1
     f(m, first(cs))
 end
-function _getattribute(m::SOItoMOIBridge, cr::CR{<:AVF}, f)
+function _getattribute(m::SOItoMOIBridge, cr::CI{<:AVF}, f)
     f.(m, m.constrmap[cr.value])
 end
 
@@ -144,17 +142,17 @@ function getslack(m::SOItoMOIBridge{T}, c::Int) where T
     end
 end
 
-function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR)
+function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CI)
     _getattribute(m, cr, getslack) + _getconstant(m, MOI.get(m, MOI.ConstraintSet(), cr))
 end
 # These constraints do not create any constraint or slack, it is just variables
 _getvarprimal(m, sv::SVF) = MOI.get(m, MOI.VariablePrimal(), sv.variable)
 _getvarprimal(m, vv::VVF) = MOI.get(m, MOI.VariablePrimal(), vv.variables)
-function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CR{<:VF, <:Union{NS, PS, DS}})
+function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CI{<:VF, <:Union{NS, PS, DS}})
     _getvarprimal(m, MOI.get(m, MOI.ConstraintFunction(), cr))
 end
 
-function getvardual(m::SOItoMOIBridge{T}, vi::UInt64) where T
+function getvardual(m::SOItoMOIBridge{T}, vi::Int64) where T
     Z = getZ(m.sdsolver)
     z = zero(T)
     for (blk, i, j, coef) in m.varmap[vi]
@@ -166,10 +164,10 @@ function getvardual(m::SOItoMOIBridge{T}, vi::UInt64) where T
 end
 getvardual(m::SOItoMOIBridge, f::SVF) = getvardual(m, f.variable.value)
 getvardual(m::SOItoMOIBridge, f::VVF) = map(vr -> getvardual(m, vr.value), f.variables)
-function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR{<:VF, <:ZS})
+function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CI{<:VF, <:ZS})
     _getattribute(m, cr, getdual) + getvardual(m, MOI.get(m, MOI.ConstraintFunction(), cr))
 end
-function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR{<:VF, <:SupportedSets})
+function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CI{<:VF, <:SupportedSets})
     getvardual(m, MOI.get(m, MOI.ConstraintFunction(), cr))
 end
 
@@ -180,7 +178,7 @@ function getdual(m::SOItoMOIBridge{T}, c::Int) where T
         -gety(m.sdsolver)[c]
     end
 end
-function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CR)
+function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CI)
     _getattribute(m, cr, getdual)
 end
 function scalevec!(v, c)
@@ -195,7 +193,7 @@ function scalevec!(v, c)
     end
     v
 end
-function MOI.get(m::SOItoMOIBridge{T}, ::MOI.ConstraintDual, cr::CR{F, DS}) where {T,F}
+function MOI.get(m::SOItoMOIBridge{T}, ::MOI.ConstraintDual, cr::CI{F, DS}) where {T,F}
     scalevec!(_getattribute(m, cr, getdual), one(T)/2)
 end
 

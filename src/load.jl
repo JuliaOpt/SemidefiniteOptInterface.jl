@@ -43,7 +43,7 @@ nconstraints(f::VF, s) = 0
 nconstraints(f::VAF, s) = length(f.constant)
 nconstraints(f::SAF, s) = 1
 
-nconstraints(cr::CR, f::MOI.AbstractFunction, s::MOI.AbstractSet) = nconstraints(f, s)
+nconstraints(cr::CI, f::MOI.AbstractFunction, s::MOI.AbstractSet) = nconstraints(f, s)
 nconstraints(c::Tuple) = nconstraints(c...)
 
 nconstraints(cs::Vector) = sum(nconstraints.(cs))
@@ -73,7 +73,7 @@ function loadprimal!(m::SOItoMOIBridge)
     for s in m.double
         MOI.delete!(m, s)
     end
-    m.double = CR[]
+    m.double = CI[]
     initvariables!(m)
     _broadcastcall(loadvariables!, m)
     loadfreevariables!(m)

@@ -23,7 +23,7 @@ function _SOCtoPSDCaff{T}(f::MOI.VectorAffineFunction{T}, g::MOI.ScalarAffineFun
     Ni = length(g.variables)
     N = N0 + (dim-1) * Ni
     outputindex  = Vector{Int}(N); outputindex[1:N0]  = trimap.(f.outputindex, 1)
-    variables    = Vector{VR}(N);  variables[1:N0]    = f.variables
+    variables    = Vector{VI}(N);  variables[1:N0]    = f.variables
     coefficients = Vector{T}(N);   coefficients[1:N0] = f.coefficients
     constant = [f.constant; zeros(T, n - length(f.constant))]
     cur = N0
@@ -49,7 +49,7 @@ end
 # t^2 > x' * x
 struct SOCtoPSDCBridge{T}
     dim::Int
-    cr::CR{MOI.VectorAffineFunction{T}, MOI.PositiveSemidefiniteConeTriangle}
+    cr::CI{MOI.VectorAffineFunction{T}, MOI.PositiveSemidefiniteConeTriangle}
 end
 function SOCtoPSDCBridge{T}(instance, f, s::MOI.SecondOrderCone) where T
     d = MOI.dimension(s)
@@ -84,7 +84,7 @@ end
 # 2t*u > x' * x
 struct RSOCtoPSDCBridge{T}
     dim::Int
-    cr::CR{MOI.VectorAffineFunction{T}, MOI.PositiveSemidefiniteConeTriangle}
+    cr::CI{MOI.VectorAffineFunction{T}, MOI.PositiveSemidefiniteConeTriangle}
 end
 function RSOCtoPSDCBridge{T}(instance, f, s::MOI.RotatedSecondOrderCone) where T
     d = MOI.dimension(s)-1

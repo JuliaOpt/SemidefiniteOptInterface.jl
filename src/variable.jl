@@ -1,12 +1,12 @@
-const VIS = Union{UInt64, Vector{UInt64}}
+const VIS = Union{Int64, Vector{Int64}}
 
 function newblock(m::SOItoMOIBridge, n)
     push!(m.blockdims, n)
     m.nblocks += 1
 end
 
-isfree(m, v::UInt64) = v in m.free
-isfree(m, v::Vector{UInt64}) = all(isfree.(m, v))
+isfree(m, v::Int64) = v in m.free
+isfree(m, v::Vector{Int64}) = all(isfree.(m, v))
 function unfree(m, v)
     @assert isfree(m, v)
     delete!(m.free, v)
