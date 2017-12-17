@@ -16,15 +16,15 @@ end
 
 _broadcastcall(f, m) = MOIU.broadcastcall(constrs -> f(m, constrs), m.sdinstance)
 
-function loadobjective!(m::SOItoMOIBridge)
-    obj = MOIU.canonical(m.sdinstance.objective)
-    sgn = _objsgn(m)
+function _loadobjective!(m::SOItoMOIBridge, sense::MOI.OptimizationSense, f::MOI.ScalarAffineFunction)
+    obj = MOIU.canonical(f)
+    m.objsign = sense == MOI.MinSense ? -1 : 1
     for (vi, val) in zip(obj.variables, obj.coefficients)
         if !iszero(val)
             for (blk, i, j, coef, shift) in m.varmap[vi]
                 if !iszero(blk)
                     # in SDP format, it is max and in MPB Conic format it is min
-                    setobjectivecoefficient!(m.sdsolver, sgn * coef * val, blk, i, j)
+                    setobjectivecoefficient!(m.sdsolver, m.objsign * coef * val, blk, i, j)
                 end
                 m.objshift += val * shift
             end
@@ -37,6 +37,7 @@ function _empty!(m::SOItoMOIBridge{T}) where T
         MOI.delete!(m, s)
     end
     m.double = CI[]
+    m.objsign = 1
     m.objshift = zero(T)
     m.nconstrs = 0
     m.nblocks = 0
@@ -53,13 +54,17 @@ function _allocatevariables!(m::SOItoMOIBridge, vis::Vector{VI})
     end
 end
 
+function _setup!(m::SOItoMOIBridge)
+    loadfreevariables!(m)
+    initinstance!(m.sdsolver, m.blockdims, m.nconstrs)
+end
+
 function loadprimal!(m::SOItoMOIBridge)
     _empty!(m)
     _allocatevariables!(m, MOI.get(m, MOI.ListOfVariableIndices()))
     _broadcastcall(loadvariables!, m)
-    loadfreevariables!(m)
     _broadcastcall(allocateconstraints!, m)
-    initinstance!(m.sdsolver, m.blockdims, m.nconstrs)
+    _setup!(m)
     _broadcastcall(loadconstraints!, m)
-    loadobjective!(m)
+    _loadobjective!(m, MOI.get(m, MOI.ObjectiveSense()), MOI.get(m, MOI.ObjectiveFunction()))
 end

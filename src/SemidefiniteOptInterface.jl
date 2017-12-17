@@ -35,6 +35,7 @@ const CI{FT, ST} = MOI.ConstraintIndex{FT, ST}
 mutable struct SOItoMOIBridge{T, SIT <: AbstractSDSolverInstance} <: MOI.AbstractSolverInstance
     sdinstance::SDInstance{T}
     sdsolver::SIT
+    objsign::Int
     objshift::T
     nconstrs::Int
     nblocks::Int
@@ -46,7 +47,7 @@ mutable struct SOItoMOIBridge{T, SIT <: AbstractSDSolverInstance} <: MOI.Abstrac
     double::Vector{CI} # created when there are two cones for same variable
     function SOItoMOIBridge{T}(sdsolver::SIT) where {T, SIT}
         new{T, SIT}(SDInstance{T}(), sdsolver,
-            zero(T), 0, 0,
+            1, zero(T), 0, 0,
             Int[],
             Set{VI}(),
             Dict{VI, Tuple{Int, Int, Int, T}}(),
@@ -78,10 +79,9 @@ end
 
 # Objective
 
-_objsgn(m) = m.sdinstance.sense == MOI.MinSense ? -1 : 1
 MOI.canget(m::SOItoMOIBridge, ::MOI.ObjectiveValue) = true
 function MOI.get(m::SOItoMOIBridge, ::MOI.ObjectiveValue)
-    m.objshift + _objsgn(m) * getprimalobjectivevalue(m.sdsolver) + m.sdinstance.objective.constant
+    m.objshift + m.objsign * getprimalobjectivevalue(m.sdsolver) + m.sdinstance.objective.constant
 end
 
 # Attributes
