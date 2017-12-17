@@ -19,11 +19,34 @@ function createslack!(m::SOItoMOIBridge{T}, cs, ::DS) where T
     end
 end
 
-function createslack!(m::SOItoMOIBridge, ci::CI, constr::VF, s) end
+function createslack!(m::SOItoMOIBridge, ci::CI, f::VF, s) end
 
-function createslack!(m::SOItoMOIBridge, ci::CI, constr::AF, s)
+function createslack!(m::SOItoMOIBridge, ci::CI, f::AF, s)
     cs = m.constrmap[ci]
     createslack!(m, cs, s)
+end
+
+nconstraints(f::SVF, s::MOI.EqualTo) = 1
+nconstraints(f::VVF, s::MOI.Zeros) = length(f.variables)
+nconstraints(f::VF, s) = 0
+nconstraints(f::VAF, s) = length(f.constant)
+nconstraints(f::SAF, s) = 1
+
+nconstraints(cr::CI, f::MOI.AbstractFunction, s::MOI.AbstractSet) = nconstraints(f, s)
+nconstraints(c::Tuple) = nconstraints(c...)
+
+nconstraints(cs::Vector) = sum(nconstraints.(cs))
+
+nconstraints{F<:SAF, S<:SupportedSets}(cs::Vector{MOIU.C{F, S}}) = length(cs)
+nconstraints{F<:SVF, S<:ZS}(cs::Vector{MOIU.C{F, S}}) = length(cs)
+nconstraints{F<:SVF, S<:SupportedSets}(cs::Vector{MOIU.C{F, S}}) = 0
+
+function allocateconstraint!(m::SOItoMOIBridge, ci, f, s)
+    n = nconstraints(f, s)
+    m.constrmap[ci] = m.nconstrs + (1:n)
+    m.nconstrs += n
+    resize!(m.slackmap, m.nconstrs)
+    createslack!(m, ci, f, s)
 end
 
 function loadslack!(m::SOItoMOIBridge, c::Integer)

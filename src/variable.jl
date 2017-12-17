@@ -54,24 +54,24 @@ function loadvariable!(m::SOItoMOIBridge{T}, vs::VIS, ::DS) where T
         end
     end
 end
-function loadvariable!(m::SOItoMOIBridge{T}, cr, constr::SVF, s) where T
-    vi = constr.variable
+function loadvariable!(m::SOItoMOIBridge{T}, cr, f::SVF, s) where T
+    vi = f.variable
     if isfree(m, vi)
         loadvariable!(m, vi, s)
     else
-        push!(m.double, MOI.addconstraint!(m, MOI.ScalarAffineFunction([constr.variable], [one(T)], zero(T)), s))
+        push!(m.double, MOI.addconstraint!(m, MOI.ScalarAffineFunction([f.variable], [one(T)], zero(T)), s))
     end
 end
-function loadvariable!(m::SOItoMOIBridge, cr, constr::VVF, s)
-    vis = constr.variables
+function loadvariable!(m::SOItoMOIBridge, cr, f::VVF, s)
+    vis = f.variables
     if isfree(m, vis)
         loadvariable!(m, vis, s)
     else
-        push!(m.double, MOI.addconstraint!(m, MOI.VectorAffineFunction{Float64}(constr), s))
+        push!(m.double, MOI.addconstraint!(m, MOI.VectorAffineFunction{Float64}(f), s))
     end
 end
 
-function loadvariable!(m::SOItoMOIBridge, cr, constr::AF, s) end
+function loadvariable!(m::SOItoMOIBridge, cr, f::AF, s) end
 
 function loadfreevariables!(m::SOItoMOIBridge{T}) where T
     for vi in m.free

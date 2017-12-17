@@ -37,7 +37,6 @@ mutable struct SOItoMOIBridge{T, SIT <: AbstractSDSolverInstance} <: MOI.Abstrac
     sdsolver::SIT
     objshift::T
     nconstrs::Int
-    constr::Int
     nblocks::Int
     blockdims::Vector{Int}
     free::Set{VI}
@@ -47,7 +46,7 @@ mutable struct SOItoMOIBridge{T, SIT <: AbstractSDSolverInstance} <: MOI.Abstrac
     double::Vector{CI} # created when there are two cones for same variable
     function SOItoMOIBridge{T}(sdsolver::SIT) where {T, SIT}
         new{T, SIT}(SDInstance{T}(), sdsolver,
-            zero(T), 0, 0, 0,
+            zero(T), 0, 0,
             Int[],
             Set{VI}(),
             Dict{VI, Tuple{Int, Int, Int, T}}(),
