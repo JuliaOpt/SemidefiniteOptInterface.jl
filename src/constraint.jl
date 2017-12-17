@@ -19,10 +19,10 @@ function createslack!(m::SOItoMOIBridge{T}, cs, ::DS) where T
     end
 end
 
-function createslack!(m::SOItoMOIBridge, cr::CI, constr::VF, s) end
+function createslack!(m::SOItoMOIBridge, ci::CI, constr::VF, s) end
 
-function createslack!(m::SOItoMOIBridge, cr::CI, constr::AF, s)
-    cs = m.constrmap[cr.value]
+function createslack!(m::SOItoMOIBridge, ci::CI, constr::AF, s)
+    cs = m.constrmap[ci]
     createslack!(m, cs, s)
 end
 
@@ -76,8 +76,8 @@ end
 
 _var(f::SVF, j) = f.variable
 _var(f::VVF, j) = f.variables[j]
-function loadconstraint!(m::SOItoMOIBridge{T}, cr::CI, f::VF, s::ZS) where T
-    cs = m.constrmap[cr.value]
+function loadconstraint!(m::SOItoMOIBridge{T}, ci::CI, f::VF, s::ZS) where T
+    cs = m.constrmap[ci]
     for j in length(cs)
         vm = m.varmap[_var(f, j)]
         @assert length(vm) == 1
@@ -89,9 +89,9 @@ function loadconstraint!(m::SOItoMOIBridge{T}, cr::CI, f::VF, s::ZS) where T
         setconstraintconstant!(m.sdsolver, zero(T), c)
     end
 end
-function loadconstraint!(m::SOItoMOIBridge, cr::CI, f::VF, s) end
-function loadconstraint!(m::SOItoMOIBridge, cr::CI, af::AF, s::SupportedSets)
-    cs = m.constrmap[cr.value]
+function loadconstraint!(m::SOItoMOIBridge, ci::CI, f::VF, s) end
+function loadconstraint!(m::SOItoMOIBridge, ci::CI, af::AF, s::SupportedSets)
+    cs = m.constrmap[ci]
     loadslacks!(m, cs)
     loadcoefficients!(m, cs, af, s)
 end

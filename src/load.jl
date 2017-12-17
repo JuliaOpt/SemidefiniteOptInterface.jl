@@ -1,9 +1,9 @@
 include("variable.jl")
 include("constraint.jl")
 
-function numberconstraint!(m::SOItoMOIBridge, cr, f, s)
+function numberconstraint!(m::SOItoMOIBridge, ci, f, s)
     n = nconstraints(f, s)
-    m.constrmap[cr.value] = m.constr + (1:n)
+    m.constrmap[ci] = m.constr + (1:n)
     m.constr += n
 end
 
@@ -53,7 +53,6 @@ nconstraints{F<:SVF, S<:SupportedSets}(cs::Vector{MOIU.C{F, S}}) = 0
 
 function initconstraints!(m::SOItoMOIBridge)
     m.nconstrs = sum(MOIU.broadcastvcat(nconstraints, m.sdinstance))
-    m.constrmap = Vector{UnitRange{Int}}(m.sdinstance.nextconstraintid)
     m.slackmap = Vector{Tuple{Int, Int, Int, Float64}}(m.nconstrs)
 end
 
@@ -70,9 +69,10 @@ function _empty!(m::SOItoMOIBridge{T}) where T
     m.blockdims = Int[]
     m.free = Set{VI}()
     m.varmap = Dict{VI, Tuple{Int,Int,Int,T,T}}()
+    m.constrmap = Dict{CI, UnitRange{Int}}()
 end
 
-function _loadvariables!(m::SOItoMOIBridge, vis::Vector{VI})
+function _allocatevariables!(m::SOItoMOIBridge, vis::Vector{VI})
     for vi in vis
         push!(m.free, vi)
     end
@@ -80,7 +80,7 @@ end
 
 function loadprimal!(m::SOItoMOIBridge)
     _empty!(m)
-    _loadvariables!(m, MOI.get(m, MOI.ListOfVariableIndices()))
+    _allocatevariables!(m, MOI.get(m, MOI.ListOfVariableIndices()))
     _broadcastcall(loadvariables!, m)
     loadfreevariables!(m)
     initconstraints!(m)

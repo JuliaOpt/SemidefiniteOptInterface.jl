@@ -42,7 +42,7 @@ mutable struct SOItoMOIBridge{T, SIT <: AbstractSDSolverInstance} <: MOI.Abstrac
     blockdims::Vector{Int}
     free::Set{VI}
     varmap::Dict{VI, Vector{Tuple{Int, Int, Int, T, T}}} # Variable Index vi -> blk, i, j, coef, shift # x = sum coef * X[blk][i, j] + shift
-    constrmap::Vector{UnitRange{Int}} # Constraint Index value ci -> cs
+    constrmap::Dict{CI, UnitRange{Int}} # Constraint Index ci -> cs
     slackmap::Vector{Tuple{Int, Int, Int, T}} # c -> blk, i, j, coef
     double::Vector{CI} # created when there are two cones for same variable
     function SOItoMOIBridge{T}(sdsolver::SIT) where {T, SIT}
@@ -51,7 +51,7 @@ mutable struct SOItoMOIBridge{T, SIT <: AbstractSDSolverInstance} <: MOI.Abstrac
             Int[],
             Set{VI}(),
             Dict{VI, Tuple{Int, Int, Int, T}}(),
-            UnitRange{Int}[],
+            Dict{CI, UnitRange{Int}}(),
             Tuple{Int, Int, Int, T}[],
             Float64[])
     end
@@ -120,13 +120,13 @@ function MOI.get(m::SOItoMOIBridge, vp::MOI.VariablePrimal, vi::Vector{VI})
     MOI.get.(m, vp, vi)
 end
 
-function _getattribute(m::SOItoMOIBridge, cr::CI{<:ASF}, f)
-    cs = m.constrmap[cr.value]
+function _getattribute(m::SOItoMOIBridge, ci::CI{<:ASF}, f)
+    cs = m.constrmap[ci]
     @assert length(cs) == 1
     f(m, first(cs))
 end
-function _getattribute(m::SOItoMOIBridge, cr::CI{<:AVF}, f)
-    f.(m, m.constrmap[cr.value])
+function _getattribute(m::SOItoMOIBridge, ci::CI{<:AVF}, f)
+    f.(m, m.constrmap[ci])
 end
 
 function getslack(m::SOItoMOIBridge{T}, c::Int) where T
