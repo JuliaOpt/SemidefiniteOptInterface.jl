@@ -23,8 +23,7 @@ end
 function loadobjective!(m::SOItoMOIBridge)
     obj = MOIU.canonical(m.sdinstance.objective)
     sgn = _objsgn(m)
-    for (vr, val) in zip(obj.variables, obj.coefficients)
-        vi = vr.value
+    for (vi, val) in zip(obj.variables, obj.coefficients)
         if !iszero(val)
             for (blk, i, j, coef, shift) in m.varmap[vi]
                 if !iszero(blk)
@@ -52,15 +51,6 @@ nconstraints{F<:SAF, S<:SupportedSets}(cs::Vector{MOIU.C{F, S}}) = length(cs)
 nconstraints{F<:SVF, S<:ZS}(cs::Vector{MOIU.C{F, S}}) = length(cs)
 nconstraints{F<:SVF, S<:SupportedSets}(cs::Vector{MOIU.C{F, S}}) = 0
 
-function initvariables!(m::SOItoMOIBridge{T}) where T
-    m.objshift = zero(T)
-    m.constr = 0
-    m.nblocks = 0
-    m.blockdims = Int[]
-    m.free = IntSet(1:m.sdinstance.nextvariableid)
-    m.varmap = Vector{Vector{Tuple{Int,Int,Int,T,T}}}(m.sdinstance.nextvariableid)
-end
-
 function initconstraints!(m::SOItoMOIBridge)
     m.nconstrs = sum(MOIU.broadcastvcat(nconstraints, m.sdinstance))
     m.constrmap = Vector{UnitRange{Int}}(m.sdinstance.nextconstraintid)
@@ -69,12 +59,28 @@ end
 
 _broadcastcall(f, m) = MOIU.broadcastcall(constrs -> f(m, constrs), m.sdinstance)
 
-function loadprimal!(m::SOItoMOIBridge)
+function _empty!(m::SOItoMOIBridge{T}) where T
     for s in m.double
         MOI.delete!(m, s)
     end
     m.double = CI[]
-    initvariables!(m)
+    m.objshift = zero(T)
+    m.constr = 0
+    m.nblocks = 0
+    m.blockdims = Int[]
+    m.free = Set{VI}()
+    m.varmap = Dict{VI, Tuple{Int,Int,Int,T,T}}()
+end
+
+function _loadvariables!(m::SOItoMOIBridge, vis::Vector{VI})
+    for vi in vis
+        push!(m.free, vi)
+    end
+end
+
+function loadprimal!(m::SOItoMOIBridge)
+    _empty!(m)
+    _loadvariables!(m, MOI.get(m, MOI.ListOfVariableIndices()))
     _broadcastcall(loadvariables!, m)
     loadfreevariables!(m)
     initconstraints!(m)

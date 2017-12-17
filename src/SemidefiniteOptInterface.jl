@@ -40,8 +40,8 @@ mutable struct SOItoMOIBridge{T, SIT <: AbstractSDSolverInstance} <: MOI.Abstrac
     constr::Int
     nblocks::Int
     blockdims::Vector{Int}
-    free::IntSet
-    varmap::Vector{Vector{Tuple{Int, Int, Int, T, T}}} # Variable Index value vi -> blk, i, j, coef, shift # x = sum coef * X[blk][i, j] + shift
+    free::Set{VI}
+    varmap::Dict{VI, Vector{Tuple{Int, Int, Int, T, T}}} # Variable Index vi -> blk, i, j, coef, shift # x = sum coef * X[blk][i, j] + shift
     constrmap::Vector{UnitRange{Int}} # Constraint Index value ci -> cs
     slackmap::Vector{Tuple{Int, Int, Int, T}} # c -> blk, i, j, coef
     double::Vector{CI} # created when there are two cones for same variable
@@ -49,8 +49,8 @@ mutable struct SOItoMOIBridge{T, SIT <: AbstractSDSolverInstance} <: MOI.Abstrac
         new{T, SIT}(SDInstance{T}(), sdsolver,
             zero(T), 0, 0, 0,
             Int[],
-            IntSet(),
-            Vector{Tuple{Int, Int, Int, T}}[],
+            Set{VI}(),
+            Dict{VI, Tuple{Int, Int, Int, T}}(),
             UnitRange{Int}[],
             Tuple{Int, Int, Int, T}[],
             Float64[])
@@ -105,10 +105,10 @@ MOI.canget(m::SOItoMOIBridge, ::Union{MOI.VariablePrimal,
                                       MOI.ConstraintDual}, ref::Vector{R}) where R <: Union{CI, VI} = true
 
 
-function MOI.get(m::SOItoMOIBridge{T}, ::MOI.VariablePrimal, vr::VI) where T
+function MOI.get(m::SOItoMOIBridge{T}, ::MOI.VariablePrimal, vi::VI) where T
     X = getX(m.sdsolver)
     x = zero(T)
-    for (blk, i, j, coef, shift) in m.varmap[vr.value]
+    for (blk, i, j, coef, shift) in m.varmap[vi]
         x += shift
         if blk != 0
             x += X[blk][i, j] * sign(coef)
@@ -116,8 +116,8 @@ function MOI.get(m::SOItoMOIBridge{T}, ::MOI.VariablePrimal, vr::VI) where T
     end
     x
 end
-function MOI.get(m::SOItoMOIBridge, vp::MOI.VariablePrimal, vr::Vector{VI})
-    MOI.get.(m, vp, vr)
+function MOI.get(m::SOItoMOIBridge, vp::MOI.VariablePrimal, vi::Vector{VI})
+    MOI.get.(m, vp, vi)
 end
 
 function _getattribute(m::SOItoMOIBridge, cr::CI{<:ASF}, f)
@@ -152,7 +152,7 @@ function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, cr::CI{<:VF, <:Unio
     _getvarprimal(m, MOI.get(m, MOI.ConstraintFunction(), cr))
 end
 
-function getvardual(m::SOItoMOIBridge{T}, vi::Int64) where T
+function getvardual(m::SOItoMOIBridge{T}, vi::VI) where T
     Z = getZ(m.sdsolver)
     z = zero(T)
     for (blk, i, j, coef) in m.varmap[vi]
@@ -162,8 +162,8 @@ function getvardual(m::SOItoMOIBridge{T}, vi::Int64) where T
     end
     z
 end
-getvardual(m::SOItoMOIBridge, f::SVF) = getvardual(m, f.variable.value)
-getvardual(m::SOItoMOIBridge, f::VVF) = map(vr -> getvardual(m, vr.value), f.variables)
+getvardual(m::SOItoMOIBridge, f::SVF) = getvardual(m, f.variable)
+getvardual(m::SOItoMOIBridge, f::VVF) = map(vi -> getvardual(m, vi), f.variables)
 function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, cr::CI{<:VF, <:ZS})
     _getattribute(m, cr, getdual) + getvardual(m, MOI.get(m, MOI.ConstraintFunction(), cr))
 end

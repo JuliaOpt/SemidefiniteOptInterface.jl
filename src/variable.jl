@@ -1,29 +1,33 @@
-const VIS = Union{Int64, Vector{Int64}}
+const VIS = Union{VI, Vector{VI}}
 
 function newblock(m::SOItoMOIBridge, n)
     push!(m.blockdims, n)
     m.nblocks += 1
 end
 
-isfree(m, v::Int64) = v in m.free
-isfree(m, v::Vector{Int64}) = all(isfree.(m, v))
+isfree(m, v::VI) = v in m.free
+isfree(m, v::Vector{VI}) = all(isfree.(m, v))
 function unfree(m, v)
     @assert isfree(m, v)
     delete!(m.free, v)
 end
 
 function loadvariable!(m::SOItoMOIBridge{T}, vs::VIS, s::ZS) where T
-    blk = newblock(m, -length(vs))
-    for (i, v) in enumerate(vs)
+    blk = newblock(m, -_length(vs))
+    for (i, v) in _enumerate(vs)
         m.varmap[v] = [(blk, i, i, one(T), _getconstant(m, s))]
         unfree(m, v)
     end
 end
 vscaling(::Type{<:NS}) = 1
 vscaling(::Type{<:PS}) = -1
+_length(vi::VI) = 1
+_length(vi::Vector{VI}) = length(vi)
+_enumerate(vi::VI) = enumerate((vi,))
+_enumerate(vi::Vector{VI}) = enumerate(vi)
 function loadvariable!{S<:Union{NS, PS}}(m::SOItoMOIBridge, vs::VIS, s::S)
-    blk = newblock(m, -length(vs))
-    for (i, v) in enumerate(vs)
+    blk = newblock(m, -_length(vs))
+    for (i, v) in _enumerate(vs)
         m.varmap[v] = [(blk, i, i, vscaling(S), _getconstant(m, s))]
         unfree(m, v)
     end
@@ -51,17 +55,17 @@ function loadvariable!(m::SOItoMOIBridge{T}, vs::VIS, ::DS) where T
     end
 end
 function loadvariable!(m::SOItoMOIBridge{T}, cr, constr::SVF, s) where T
-    vs = constr.variable.value
-    if isfree(m, vs)
-        loadvariable!(m, vs, s)
+    vi = constr.variable
+    if isfree(m, vi)
+        loadvariable!(m, vi, s)
     else
         push!(m.double, MOI.addconstraint!(m, MOI.ScalarAffineFunction([constr.variable], [one(T)], zero(T)), s))
     end
 end
 function loadvariable!(m::SOItoMOIBridge, cr, constr::VVF, s)
-    vs = map(v -> v.value, constr.variables)
-    if isfree(m, vs)
-        loadvariable!(m, vs, s)
+    vis = constr.variables
+    if isfree(m, vis)
+        loadvariable!(m, vis, s)
     else
         push!(m.double, MOI.addconstraint!(m, MOI.VectorAffineFunction{Float64}(constr), s))
     end

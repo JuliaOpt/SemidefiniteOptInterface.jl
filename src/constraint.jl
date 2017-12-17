@@ -54,7 +54,7 @@ function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange, f::AF, s)
             if !iszero(val)
                 row = _row(f, i)
                 c = cs[row]
-                for (blk, i, j, coef, shift) in m.varmap[f.variables[i].value]
+                for (blk, i, j, coef, shift) in m.varmap[f.variables[i]]
                     if !iszero(blk)
                         @assert !iszero(coef)
                         setconstraintcoefficient!(m.sdsolver, val*coef, c, blk, i, j)
@@ -79,7 +79,7 @@ _var(f::VVF, j) = f.variables[j]
 function loadconstraint!(m::SOItoMOIBridge{T}, cr::CI, f::VF, s::ZS) where T
     cs = m.constrmap[cr.value]
     for j in length(cs)
-        vm = m.varmap[_var(f, j).value]
+        vm = m.varmap[_var(f, j)]
         @assert length(vm) == 1
         (blk, i, j, coef, shift) = first(vm)
         @assert coef == one(T)
