@@ -7,10 +7,19 @@ MOI.delete!(instance::SOItoMOIBridge, r::MOI.Index) = MOI.delete!(instance.sdins
 for f in (:canget, :canset, :set!, :get, :get!)
     @eval begin
         MOI.$f(instance::SOItoMOIBridge, attr::MOI.AnyAttribute) = MOI.$f(instance.sdinstance, attr)
-        MOI.$f(instance::SOItoMOIBridge, attr::MOI.AnyAttribute, ref::MOI.Index) = MOI.$f(instance.sdinstance, attr, ref)
-        MOI.$f(instance::SOItoMOIBridge, attr::MOI.AnyAttribute, refs::Vector{<:MOI.Index}) = MOI.$f(instance.sdinstance, attr, refs)
         # Objective function
         MOI.$f(instance::SOItoMOIBridge, attr::MOI.AnyAttribute, arg::Union{MOI.OptimizationSense, MOI.AbstractScalarFunction}) = MOI.$f(instance.sdinstance, attr, arg)
+    end
+end
+for f in (:canget, :canset)
+    @eval begin
+        MOI.$f(instance::SOItoMOIBridge, attr::MOI.AnyAttribute, index::Type{<:MOI.Index}) = MOI.$f(instance.sdinstance, attr, index)
+    end
+end
+for f in (:set!, :get, :get!)
+    @eval begin
+        MOI.$f(instance::SOItoMOIBridge, attr::MOI.AnyAttribute, index::MOI.Index) = MOI.$f(instance.sdinstance, attr, index)
+        MOI.$f(instance::SOItoMOIBridge, attr::MOI.AnyAttribute, indices::Vector{<:MOI.Index}) = MOI.$f(instance.sdinstance, attr, indices)
     end
 end
 

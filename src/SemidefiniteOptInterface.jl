@@ -97,12 +97,7 @@ MOI.get(m::SOItoMOIBridge, ::MOI.ResultCount) = 1
 
 MOI.canget(m::SOItoMOIBridge, ::Union{MOI.VariablePrimal,
                                       MOI.ConstraintPrimal,
-                                      MOI.ConstraintDual}, ref::Union{CI, VI}) = true
-
-MOI.canget(m::SOItoMOIBridge, ::Union{MOI.VariablePrimal,
-                                      MOI.ConstraintPrimal,
-                                      MOI.ConstraintDual}, ref::Vector{R}) where R <: Union{CI, VI} = true
-
+                                      MOI.ConstraintDual}, ::Type{<:MOI.Index}) = true
 
 function MOI.get(m::SOItoMOIBridge{T}, ::MOI.VariablePrimal, vi::VI) where T
     X = getX(m.sdsolver)
