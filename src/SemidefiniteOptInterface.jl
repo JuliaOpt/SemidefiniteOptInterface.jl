@@ -25,9 +25,6 @@ const NS = Union{MOI.GreaterThan, MOI.Nonnegatives}
 const PS = Union{MOI.LessThan, MOI.Nonpositives}
 const DS = MOI.PositiveSemidefiniteConeTriangle
 const SupportedSets = Union{ZS, NS, PS, DS}
-const BridgedSets = Union{MOI.Interval,
-                          MOI.SecondOrderCone,
-                          MOI.RotatedSecondOrderCone}
 
 const VI = MOI.VariableIndex
 const CI{FT, ST} = MOI.ConstraintIndex{FT, ST}
@@ -102,7 +99,9 @@ MOI.copy!(dest::SOItoMOIBridge, src::MOI.AbstractInstance) = MOIU.allocateload!(
 # Constraints
 
 function MOI.optimize!(m::SOItoMOIBridge)
-    m.idxmap = MOI.copy!(m, m.sdinstance)
+    res = MOI.copy!(m, m.sdinstance)
+    @assert res.status == MOI.CopySuccess
+    m.idxmap = res.indexmap
     MOI.optimize!(m.sdsolver)
 end
 

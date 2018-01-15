@@ -1,19 +1,27 @@
 include("variable.jl")
 include("constraint.jl")
 
-function MOIU.allocateobjective!(m::SOItoMOIBridge, sense::MOI.OptimizationSense, f::MOI.ScalarAffineFunction) end
+MOIU.canallocate(::SOItoMOIBridge, ::MOI.ObjectiveSense) = true
+function MOIU.allocate!(instance::SOItoMOIBridge, ::MOI.ObjectiveSense, sense::MOI.OptimizationSense)
+    # To be sure that it is done before load!(instance, ::ObjectiveFunction, ...), we do it in allocate!
+    instance.objsign = sense == MOI.MinSense ? -1 : 1
+end
+MOIU.canallocate(::SOItoMOIBridge, ::MOI.ObjectiveFunction) = true
+function MOIU.allocate!(::SOItoMOIBridge, ::MOI.ObjectiveFunction, ::MOI.ScalarAffineFunction) end
 
-function MOIU.loadobjective!(m::SOItoMOIBridge, sense::MOI.OptimizationSense, f::MOI.ScalarAffineFunction)
+MOIU.canload(m::SOItoMOIBridge, ::MOI.ObjectiveSense) = true
+function MOIU.load!(::SOItoMOIBridge, ::MOI.ObjectiveSense, ::MOI.OptimizationSense) end
+MOIU.canload(m::SOItoMOIBridge, ::MOI.ObjectiveFunction) = true
+function MOIU.load!(instance::SOItoMOIBridge, ::MOI.ObjectiveFunction, f::MOI.ScalarAffineFunction)
     obj = MOIU.canonical(f)
-    m.objsign = sense == MOI.MinSense ? -1 : 1
     for (vi, val) in zip(obj.variables, obj.coefficients)
         if !iszero(val)
-            for (blk, i, j, coef, shift) in varmap(m, vi)
+            for (blk, i, j, coef, shift) in varmap(instance, vi)
                 if !iszero(blk)
                     # in SDP format, it is max and in MPB Conic format it is min
-                    setobjectivecoefficient!(m.sdsolver, m.objsign * coef * val, blk, i, j)
+                    setobjectivecoefficient!(instance.sdsolver, instance.objsign * coef * val, blk, i, j)
                 end
-                m.objshift += val * shift
+                instance.objshift += val * shift
             end
         end
     end
