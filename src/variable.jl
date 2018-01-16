@@ -59,7 +59,7 @@ function _constraintvariable!(m::SOItoMOIBridge{T}, vs::VIS, ::DS) where T
 end
 _var(f::SVF) = f.variable
 _var(f::VVF) = f.variables
-function MOIU.allocateconstraint!(m::SOItoMOIBridge{T}, f::VF, s) where T
+function MOIU.allocateconstraint!(m::SOItoMOIBridge{T}, f::VF, s::SupportedSets) where T
     vis = _var(f)
     fr = isfree(m, vis)
     if fr
@@ -76,6 +76,24 @@ function MOIU.allocateconstraint!(m::SOItoMOIBridge{T}, f::VF, s) where T
     end
 end
 
+_var(f::SVF, j) = f.variable
+_var(f::VVF, j) = f.variables[j]
+function MOIU.loadconstraint!(m::SOItoMOIBridge{T}, ci::CI, f::VF, s::SupportedSets) where T
+    if ci.value >= 0 # i.e. s is ZS or _var(f) wasn't free at allocateconstraint!
+        cs = m.constrmap[ci]
+        @assert !isempty(cs)
+        loadslacks!(m, cs)
+        for k in 1:length(cs)
+            vm = varmap(m, _var(f, k))
+            # For free variables, the length of vm is 2, clearly not the case here
+            @assert length(vm) == 1
+            (blk, i, j, coef, shift) = first(vm)
+            c = cs[k]
+            setconstraintcoefficient!(m.sdsolver, coef, c, blk, i, j)
+            setconstraintconstant!(m.sdsolver,  _getconstant(m, s) - coef * shift, c)
+        end
+    end
+end
 
 function loadfreevariables!(m::SOItoMOIBridge{T}) where T
     for vi in m.free

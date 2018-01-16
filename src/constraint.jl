@@ -24,20 +24,9 @@ function createslack!(m::SOItoMOIBridge, ci::CI, f, s)
     createslack!(m, cs, s)
 end
 
-nconstraints(f::SVF, s::MOI.EqualTo) = 1
-nconstraints(f::VVF, s::MOI.Zeros) = length(f.variables)
-nconstraints(f::VF, s) = 0
+nconstraints(f::Union{SVF, SAF}, s) = 1
+nconstraints(f::VVF, s) = length(f.variables)
 nconstraints(f::VAF, s) = length(f.constant)
-nconstraints(f::SAF, s) = 1
-
-nconstraints(cr::CI, f::MOI.AbstractFunction, s::MOI.AbstractSet) = nconstraints(f, s)
-nconstraints(c::Tuple) = nconstraints(c...)
-
-nconstraints(cs::Vector) = sum(nconstraints.(cs))
-
-nconstraints{F<:SAF, S<:SupportedSets}(cs::Vector{MOIU.C{F, S}}) = length(cs)
-nconstraints{F<:SVF, S<:ZS}(cs::Vector{MOIU.C{F, S}}) = length(cs)
-nconstraints{F<:SVF, S<:SupportedSets}(cs::Vector{MOIU.C{F, S}}) = 0
 
 MOIU.canallocateconstraint(::SOItoMOIBridge{T}, f::Union{VF, AF{T}}, ::SupportedSets) where T = true
 function _allocateconstraint!(m::SOItoMOIBridge, f, s)
@@ -49,7 +38,7 @@ function _allocateconstraint!(m::SOItoMOIBridge, f, s)
     createslack!(m, ci, f, s)
     ci
 end
-function MOIU.allocateconstraint!(m::SOItoMOIBridge, f, s)
+function MOIU.allocateconstraint!(m::SOItoMOIBridge, f::AF, s::SupportedSets)
     _allocateconstraint!(m::SOItoMOIBridge, f, s)
 end
 
@@ -102,25 +91,9 @@ function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange, f::AF, s)
 end
 
 MOIU.canloadconstraint(::SOItoMOIBridge{T}, f::Union{VF, AF{T}}, ::SupportedSets) where T = true
-_var(f::SVF, j) = f.variable
-_var(f::VVF, j) = f.variables[j]
-function MOIU.loadconstraint!(m::SOItoMOIBridge{T}, ci::CI, f::VF, s) where T
-    if ci.value >= 0 # i.e. s is ZS or _var(f) wasn't free at allocateconstraint!
-        cs = m.constrmap[ci]
-        for k in length(cs)
-            vm = varmap(m, _var(f, k))
-            @assert length(vm) == 1
-            (blk, i, j, coef, shift) = first(vm)
-            @assert coef == one(T)
-            @assert s isa MOI.Zeros || shift == s.value
-            c = cs[k]
-            setconstraintcoefficient!(m.sdsolver, one(T), c, blk, i, j)
-            setconstraintconstant!(m.sdsolver, zero(T), c)
-        end
-    end
-end
-function MOIU.loadconstraint!(m::SOItoMOIBridge, ci::CI, af::AF, s::SupportedSets)
+function MOIU.loadconstraint!(m::SOItoMOIBridge, ci::CI, f::AF, s::SupportedSets)
     cs = m.constrmap[ci]
+    @assert !isempty(cs)
     loadslacks!(m, cs)
-    loadcoefficients!(m, cs, af, s)
+    loadcoefficients!(m, cs, f, s)
 end
