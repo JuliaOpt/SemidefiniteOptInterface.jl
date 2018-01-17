@@ -7,7 +7,7 @@ solvers = [() -> CSDP.CSDPInstance(printlevel=0)]
 using MathOptInterfaceTests
 const MOIT = MathOptInterfaceTests
 
-const config = MOIT.TestConfig(1e-4, 1e-4, true, true, true, true)
+const config = MOIT.TestConfig(atol=1e-4, rtol=1e-4)
 
 @testset "Linear tests with $solver" for solver in solvers
     MOIT.contlineartest(solver, config)
