@@ -200,23 +200,17 @@ function getslack(m::SOItoMOIBridge{T}, c::Int) where T
     end
 end
 
-function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, ci::CI)
-    constant = _getconstant(m, MOI.get(m, MOI.ConstraintSet(), ci))
-    ci = m.idxmap[ci]
-    _getattribute(m, ci, getslack) + constant
-end
-# These constraints do not create any constraint or slack, it is just variables
-#_getvarprimal(m, sv::SVF) = MOI.get(m, MOI.VariablePrimal(), sv.variable)
-#_getvarprimal(m, vv::VVF) = MOI.get(m, MOI.VariablePrimal(), vv.variables)
-function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, ci::CI{<:VF, S}) where S <: Union{NS, PS, DS}
-    ci = m.idxmap[ci]
+function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, ci0::CI{F, S}) where {F, S}
+    ci = m.idxmap[ci0]
     if ci.value >= 0
-        blk = m.zeroblock[ci] # TODO double
+        # TODO get the constant differently, either asking the solver or storing the vector
+        constant = _getconstant(m, MOI.get(m, MOI.ConstraintSet(), ci0))
+        _getattribute(m, ci, getslack) + constant
     else
+        # Variable Function-in-S with S different from Zeros and EqualTo and not a double variable constraint
         blk = -ci.value
+        getvarprimal(m, blk, S)
     end
-    getvarprimal(m, blk, S)
-    #_getvarprimal(m, MOI.get(m, MOI.ConstraintFunction(), ci))
 end
 
 function getvardual(m::SOItoMOIBridge{T}, vi::VI) where T
