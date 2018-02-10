@@ -28,6 +28,10 @@ function MOIU.load!(instance::SOItoMOIBridge, ::MOI.ObjectiveFunction, f::MOI.Sc
 end
 
 function MOIU.allocatevariables!(instance::SOItoMOIBridge{T}, nvars) where T
+    for s in instance.double
+        MOI.delete!(m, s)
+    end
+    instance.double = CI[]
     instance.free = IntSet(1:nvars)
     instance.varmap = Vector{Vector{Tuple{Int, Int, Int, T, T}}}(nvars)
     VI.(1:nvars)

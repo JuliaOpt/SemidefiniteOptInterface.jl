@@ -78,10 +78,8 @@ include("setbridges.jl")
 include("load.jl")
 
 function MOI.empty!(instance::SOItoMOIBridge{T}) where T
-    for s in instance.double
-        MOI.delete!(m, s)
-    end
-    instance.double = CI[]
+    MOI.empty!(instance.sdinstance)
+    idxmap = MOIU.IndexMap()
     instance.objsign = 1
     instance.objshift = zero(T)
     instance.nconstrs = 0
@@ -92,16 +90,25 @@ function MOI.empty!(instance::SOItoMOIBridge{T}) where T
     instance.zeroblock = Dict{CI, Int}()
     instance.constrmap = Dict{CI, UnitRange{Int}}()
     instance.slackmap = Tuple{Int, Int, Int, T}[]
+    instance.double = CI[]
+end
+function MOI.isempty(instance::SOItoMOIBridge)
+    MOI.isempty(instance.sdinstance) && isempty(instance.double) && instance.objsign == 1 && iszero(instance.objshift) && iszero(instance.nconstrs) && iszero(instance.nblocks) && isempty(instance.blockdims) && isempty(instance.free) && isempty(instance.varmap) && isempty(instance.zeroblock) && isempty(instance.constrmap) && isempty(instance.slackmap)
 end
 
 MOI.copy!(dest::SOItoMOIBridge, src::MOI.AbstractInstance) = MOIU.allocateload!(dest, src)
 
 # Constraints
 
-function MOI.optimize!(m::SOItoMOIBridge)
-    res = MOI.copy!(m, m.sdinstance)
+function MOI.optimize!(m::SOItoMOIBridge{T}) where T
+    # Need a copy as `copy!` will call `empty!` on `m`
+    sdinst = SDInstance{T}()
+    MOI.copy!(sdinst, m.sdinstance)
+    @show MOI.get(m.sdinstance, MOI.NumberOfVariables())
+    res = MOI.copy!(m, sdinst)
     @assert res.status == MOI.CopySuccess
-    m.idxmap = res.indexmap
+    @show res.indexmap
+    m.idxmap = res.indexmap # indexmap is with sdinst, not good
     MOI.optimize!(m.sdsolver)
 end
 
