@@ -28,7 +28,7 @@ nconstraints(f::Union{SVF, SAF}, s) = 1
 nconstraints(f::VVF, s) = length(f.variables)
 nconstraints(f::VAF, s) = length(f.constant)
 
-MOIU.canallocateconstraint(::SOItoMOIBridge{T}, f::Union{VF, AF{T}}, ::SupportedSets) where T = true
+MOIU.canallocateconstraint(::SOItoMOIBridge{T}, f::Type{<:Union{VF, AF{T}}}, ::Type{<:SupportedSets}) where T = true
 function _allocateconstraint!(m::SOItoMOIBridge, f, s)
     ci = CI{typeof(f), typeof(s)}(m.nconstrs)
     n = nconstraints(f, s)
@@ -90,7 +90,7 @@ function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange, f::AF, s)
     end
 end
 
-MOIU.canloadconstraint(::SOItoMOIBridge{T}, f::Union{VF, AF{T}}, ::SupportedSets) where T = true
+MOIU.canloadconstraint(::SOItoMOIBridge{T}, f::Type{<:Union{VF, AF{T}}}, ::Type{<:SupportedSets}) where T = true
 function MOIU.loadconstraint!(m::SOItoMOIBridge, ci::CI, f::AF, s::SupportedSets)
     cs = m.constrmap[ci]
     @assert !isempty(cs)

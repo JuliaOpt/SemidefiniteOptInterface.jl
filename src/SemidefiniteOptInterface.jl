@@ -4,10 +4,6 @@ using MathOptInterface
 const MOI = MathOptInterface
 const MOIU = MOI.Utilities
 
-using MathOptInterfaceBridges
-const MOIB = MathOptInterfaceBridges
-MOIU.@model SDModelData () (EqualTo, GreaterThan, LessThan) (Zeros, Nonnegatives, Nonpositives, PositiveSemidefiniteConeTriangle) () (SingleVariable,) (ScalarAffineFunction,) (VectorOfVariables,) (VectorAffineFunction,)
-
 abstract type AbstractSDOptimizer <: MOI.AbstractOptimizer end
 
 include("interface.jl")
@@ -28,12 +24,11 @@ const DS = MOI.PositiveSemidefiniteConeTriangle
 const SupportedSets = Union{ZS, NS, PS, DS}
 
 const VI = MOI.VariableIndex
-const CI{FT, ST} = MOI.ConstraintIndex{FT, ST}
+const CI{F, S} = MOI.ConstraintIndex{F, S}
 
 mutable struct SOItoMOIBridge{T, SIT <: AbstractSDOptimizer} <: MOI.AbstractOptimizer
-    sdmodel::SDModelData{T} # Will be removed when
-    idxmap::MOIU.IndexMap       # CachingOptimizer is ready
     sdoptimizer::SIT
+    objconstant::T
     objsign::Int
     objshift::T
     nconstrs::Int
@@ -46,8 +41,8 @@ mutable struct SOItoMOIBridge{T, SIT <: AbstractSDOptimizer} <: MOI.AbstractOpti
     slackmap::Vector{Tuple{Int, Int, Int, T}} # c -> blk, i, j, coef
     double::Vector{CI} # created when there are two cones for same variable
     function SOItoMOIBridge{T}(sdoptimizer::SIT) where {T, SIT}
-        new{T, SIT}(SDModelData{T}(), MOIU.IndexMap(), sdoptimizer,
-            1, zero(T), 0, 0,
+        new{T, SIT}(sdoptimizer,
+            zero(T), 1, zero(T), 0, 0,
             Int[],
             IntSet(),
             Vector{Tuple{Int, Int, Int, T}}[],
@@ -65,16 +60,9 @@ function setvarmap!(optimizer::SOItoMOIBridge{T}, vi::VI, vs::Vector{Tuple{Int, 
     optimizer.varmap[vi.value] = vs
 end
 
-SDOIOptimizer(sdoptimizer::AbstractSDOptimizer, T=Float64) = RootDet{T}(GeoMean{T}(RSOCtoPSDC{T}(SOCtoPSDC{T}(SplitInterval{T}(SOItoMOIBridge{T}(sdoptimizer))))))
+SDOIOptimizer(sdoptimizer::AbstractSDOptimizer, T=Float64) = SOItoMOIBridge{T}(sdoptimizer)
 
-include("data.jl")
-
-include("setbridges.jl")
-MOIB.@bridge SplitInterval MOIB.SplitIntervalBridge () (Interval,) () () () (ScalarAffineFunction,) () ()
-MOIB.@bridge SOCtoPSDC SOCtoPSDCBridge () () (SecondOrderCone,) () () () (VectorOfVariables,) (VectorAffineFunction,)
-MOIB.@bridge RSOCtoPSDC RSOCtoPSDCBridge () () (RotatedSecondOrderCone,) () () () (VectorOfVariables,) (VectorAffineFunction,)
-MOIB.@bridge GeoMean MOIB.GeoMeanBridge () () (GeometricMeanCone,) () () () (VectorOfVariables,) (VectorAffineFunction,)
-MOIB.@bridge RootDet MOIB.RootDetBridge () () (RootDetConeTriangle,) () () () (VectorOfVariables,) (VectorAffineFunction,)
+MOI.canaddvariable(optimizer::SOItoMOIBridge) = false
 
 include("load.jl")
 
@@ -83,6 +71,7 @@ function MOI.empty!(optimizer::SOItoMOIBridge{T}) where T
         MOI.delete!(m, s)
     end
     optimizer.double = CI[]
+    optimizer.objconstant = zero(T)
     optimizer.objsign = 1
     optimizer.objshift = zero(T)
     optimizer.nconstrs = 0
@@ -99,18 +88,13 @@ MOI.copy!(dest::SOItoMOIBridge, src::MOI.ModelLike) = MOIU.allocateload!(dest, s
 
 # Constraints
 
-function MOI.optimize!(m::SOItoMOIBridge)
-    res = MOI.copy!(m, m.sdmodel)
-    @assert res.status == MOI.CopySuccess
-    m.idxmap = res.indexmap
-    MOI.optimize!(m.sdoptimizer)
-end
+MOI.optimize!(m::SOItoMOIBridge) = MOI.optimize!(m.sdoptimizer)
 
 # Objective
 
 MOI.canget(m::SOItoMOIBridge, ::MOI.ObjectiveValue) = true
 function MOI.get(m::SOItoMOIBridge, ::MOI.ObjectiveValue)
-    m.objshift + m.objsign * getprimalobjectivevalue(m.sdoptimizer) + m.sdoptimizer.objective.constant
+    m.objshift + m.objsign * getprimalobjectivevalue(m.sdoptimizer) + m.objconstant
 end
 
 # Attributes
@@ -164,7 +148,6 @@ getvarprimal(m::SOItoMOIBridge, blk::Int, S) = getblock(getX(m.sdoptimizer), blk
 getvardual(m::SOItoMOIBridge, blk::Int, S) = getblock(getZ(m.sdoptimizer), blk, S)
 
 function MOI.get(m::SOItoMOIBridge{T}, ::MOI.VariablePrimal, vi::VI) where T
-    vi = m.idxmap[vi]
     X = getX(m.sdoptimizer)
     x = zero(T)
     for (blk, i, j, coef, shift) in varmap(m, vi)
@@ -201,8 +184,7 @@ function getslack(m::SOItoMOIBridge{T}, c::Int) where T
     end
 end
 
-function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, ci0::CI{F, S}) where {F, S}
-    ci = m.idxmap[ci0]
+function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, ci::CI{F, S}) where {F, S}
     if ci.value >= 0
         # TODO get the constant differently, either asking the optimizer or storing the vector
         constant = _getconstant(m, MOI.get(m, MOI.ConstraintSet(), ci0))
@@ -227,11 +209,9 @@ end
 getvardual(m::SOItoMOIBridge, f::SVF) = getvardual(m, f.variable)
 getvardual(m::SOItoMOIBridge, f::VVF) = map(vi -> getvardual(m, vi), f.variables)
 #function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, ci::CI{<:VF, S})
-#    ci = m.idxmap[ci]
 #    _getattribute(m, ci, getdual) + getvardual(m, MOI.get(m, MOI.ConstraintFunction(), ci))
 #end
 function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, ci::CI{<:VF, S}) where S<:SupportedSets
-    ci = m.idxmap[ci]
     if ci.value < 0
         getvardual(m, -ci.value, S)
     else
@@ -252,7 +232,6 @@ function getdual(m::SOItoMOIBridge{T}, c::Int) where T
     end
 end
 function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, ci::CI)
-    ci = m.idxmap[ci]
     _getattribute(m, ci, getdual)
 end
 function scalevec!(v, c)
@@ -268,7 +247,6 @@ function scalevec!(v, c)
     v
 end
 function MOI.get(m::SOItoMOIBridge{T}, ::MOI.ConstraintDual, ci::CI{F, DS}) where {T,F}
-    ci = m.idxmap[ci]
     scalevec!(_getattribute(m, ci, getdual), one(T)/2)
 end
 
