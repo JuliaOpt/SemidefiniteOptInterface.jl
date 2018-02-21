@@ -22,9 +22,10 @@ MOIB.@bridge RootDet MOIB.RootDetBridge () () (RootDetConeTriangle,) () () () (V
 
 const config = MOIT.TestConfig(atol=1e-4, rtol=1e-4)
 
-@testset "Linear tests with $optimizer" for optimizer in optimizers
+# name too long with $optimizer, waiting for https://github.com/JuliaOpt/MathOptInterface.jl/pull/201
+@testset "Linear tests with optimizer" for optimizer in optimizers
     MOIT.contlineartest(SplitInterval{Float64}(MOIU.CachingOptimizer(SDModelData{Float64}(), optimizer)), config)
 end
-@testset "Conic tests with $optimizer" for optimizer in optimizers
+@testset "Conic tests with optimizer" for optimizer in optimizers
     MOIT.contconictest(RootDet{Float64}(GeoMean{Float64}(RSOCtoPSDC{Float64}(SOCtoPSDC{Float64}(MOIU.CachingOptimizer(SDModelData{Float64}(), optimizer))))), config, ["logdet", "exp"])
 end

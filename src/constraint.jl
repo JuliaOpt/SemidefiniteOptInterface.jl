@@ -92,6 +92,7 @@ end
 
 MOIU.canloadconstraint(::SOItoMOIBridge{T}, f::Type{<:Union{VF, AF{T}}}, ::Type{<:SupportedSets}) where T = true
 function MOIU.loadconstraint!(m::SOItoMOIBridge, ci::CI, f::AF, s::SupportedSets)
+    setconstant!(m, ci, s)
     cs = m.constrmap[ci]
     @assert !isempty(cs)
     loadslacks!(m, cs)

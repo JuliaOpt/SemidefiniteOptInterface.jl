@@ -78,8 +78,9 @@ end
 
 _var(f::SVF, j) = f.variable
 _var(f::VVF, j) = f.variables[j]
-function MOIU.loadconstraint!(m::SOItoMOIBridge{T}, ci::CI, f::VF, s::SupportedSets) where T
+function MOIU.loadconstraint!(m::SOItoMOIBridge, ci::CI, f::VF, s::SupportedSets)
     if ci.value >= 0 # i.e. s is ZS or _var(f) wasn't free at allocateconstraint!
+        setconstant!(m, ci, s)
         cs = m.constrmap[ci]
         @assert !isempty(cs)
         loadslacks!(m, cs)

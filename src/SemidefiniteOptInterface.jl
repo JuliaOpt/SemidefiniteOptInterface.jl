@@ -28,6 +28,7 @@ const CI{F, S} = MOI.ConstraintIndex{F, S}
 
 mutable struct SOItoMOIBridge{T, SIT <: AbstractSDOptimizer} <: MOI.AbstractOptimizer
     sdoptimizer::SIT
+    setconstant::Dict{Int64, T}
     objconstant::T
     objsign::Int
     objshift::T
@@ -41,7 +42,7 @@ mutable struct SOItoMOIBridge{T, SIT <: AbstractSDOptimizer} <: MOI.AbstractOpti
     slackmap::Vector{Tuple{Int, Int, Int, T}} # c -> blk, i, j, coef
     double::Vector{CI} # created when there are two cones for same variable
     function SOItoMOIBridge{T}(sdoptimizer::SIT) where {T, SIT}
-        new{T, SIT}(sdoptimizer,
+        new{T, SIT}(sdoptimizer, Dict{Int64, T}(),
             zero(T), 1, zero(T), 0, 0,
             Int[],
             IntSet(),
@@ -71,6 +72,7 @@ function MOI.empty!(optimizer::SOItoMOIBridge{T}) where T
         MOI.delete!(m, s)
     end
     optimizer.double = CI[]
+    optimizer.setconstant = Dict{Int64, T}()
     optimizer.objconstant = zero(T)
     optimizer.objsign = 1
     optimizer.objshift = zero(T)
@@ -84,9 +86,18 @@ function MOI.empty!(optimizer::SOItoMOIBridge{T}) where T
     optimizer.slackmap = Tuple{Int, Int, Int, T}[]
 end
 
-MOI.copy!(dest::SOItoMOIBridge, src::MOI.ModelLike) = MOIU.allocateload!(dest, src)
+function setconstant!(optimizer::SOItoMOIBridge, ci::CI, s) end
+function setconstant!(optimizer::SOItoMOIBridge, ci::CI, s::MOI.AbstractScalarSet)
+    optimizer.setconstant[ci.value] = MOIU.getconstant(s)
+end
+function addconstant(optimizer::SOItoMOIBridge, ci::CI{<:Any, <:MOI.AbstractScalarSet}, x)
+    x + optimizer.setconstant[ci.value]
+end
+function addconstant(optimizer::SOItoMOIBridge, ci::CI, x)
+    x
+end
 
-# Constraints
+MOI.copy!(dest::SOItoMOIBridge, src::MOI.ModelLike) = MOIU.allocateload!(dest, src)
 
 MOI.optimize!(m::SOItoMOIBridge) = MOI.optimize!(m.sdoptimizer)
 
@@ -186,9 +197,7 @@ end
 
 function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, ci::CI{F, S}) where {F, S}
     if ci.value >= 0
-        # TODO get the constant differently, either asking the optimizer or storing the vector
-        constant = _getconstant(m, MOI.get(m, MOI.ConstraintSet(), ci0))
-        _getattribute(m, ci, getslack) + constant
+        addconstant(m, ci, _getattribute(m, ci, getslack))
     else
         # Variable Function-in-S with S different from Zeros and EqualTo and not a double variable constraint
         blk = -ci.value
