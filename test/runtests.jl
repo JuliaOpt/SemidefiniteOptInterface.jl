@@ -2,16 +2,17 @@ using SemidefiniteOptInterface
 using Base.Test
 
 import CSDP
-solvers = [() -> CSDP.CSDPInstance(printlevel=0)]
+optimizers = [CSDP.CSDPOptimizer(printlevel=0)]
 
-using MathOptInterfaceTests
-const MOIT = MathOptInterfaceTests
+using MathOptInterface
+const MOI = MathOptInterface
+const MOIT = MOI.Test
 
 const config = MOIT.TestConfig(atol=1e-4, rtol=1e-4)
 
-@testset "Linear tests with $solver" for solver in solvers
-    MOIT.contlineartest(solver, config)
+@testset "Linear tests with $optimizer" for optimizer in optimizers
+    MOIT.contlineartest(optimizer, config)
 end
-@testset "Conic tests with $solver" for solver in solvers
-    MOIT.contconictest(solver, config, ["logdet", "exp"])
+@testset "Conic tests with $optimizer" for optimizer in optimizers
+    MOIT.contconictest(optimizer, config, ["logdet", "exp"])
 end

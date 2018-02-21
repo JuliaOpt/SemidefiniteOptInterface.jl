@@ -62,12 +62,12 @@ MOI.get(::SOCtoPSDCBridge{T}, ::MOI.NumberOfConstraints{MOI.VectorAffineFunction
 _SOCtoPSDCaff(f::MOI.VectorOfVariables) = _SOCtoPSDCaff(tofun(f))
 _SOCtoPSDCaff(f::MOI.VectorAffineFunction) = _SOCtoPSDCaff(f, MOIU.eachscalar(f)[1])
 
-MOI.canget(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::SOCtoPSDCBridge) = true
-function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::SOCtoPSDCBridge)
+MOI.canget(instance::MOI.AbstractOptimizer, a::MOI.ConstraintPrimal, c::SOCtoPSDCBridge) = true
+function MOI.get(instance::MOI.AbstractOptimizer, a::MOI.ConstraintPrimal, c::SOCtoPSDCBridge)
     MOI.get(instance, MOI.ConstraintPrimal(), c.cr)[trimap.(1:c.dim, 1)]
 end
-MOI.canget(instance::MOI.AbstractInstance, a::MOI.ConstraintDual, c::SOCtoPSDCBridge) = true
-function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintDual, c::SOCtoPSDCBridge)
+MOI.canget(instance::MOI.AbstractOptimizer, a::MOI.ConstraintDual, c::SOCtoPSDCBridge) = true
+function MOI.get(instance::MOI.AbstractOptimizer, a::MOI.ConstraintDual, c::SOCtoPSDCBridge)
     dual = MOI.get(instance, MOI.ConstraintDual(), c.cr)
     tdual = sum(i -> dual[trimap(i, i)], 1:c.dim)
     [tdual; dual[trimap.(2:c.dim, 1)]*2]
@@ -102,19 +102,19 @@ function _RSOCtoPSDCaff(f::MOI.VectorAffineFunction)
     _SOCtoPSDCaff(MOIU.eachscalar(f)[[1; 3:n]], g)
 end
 
-MOI.canget(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::RSOCtoPSDCBridge) = true
-function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintPrimal, c::RSOCtoPSDCBridge)
+MOI.canget(instance::MOI.AbstractOptimizer, a::MOI.ConstraintPrimal, c::RSOCtoPSDCBridge) = true
+function MOI.get(instance::MOI.AbstractOptimizer, a::MOI.ConstraintPrimal, c::RSOCtoPSDCBridge)
     x = MOI.get(instance, MOI.ConstraintPrimal(), c.cr)[[trimap(1, 1); trimap(2, 2); trimap.(2:c.dim, 1)]]
     x[2] /= 2 # It is (2u*I)[1,1] so it needs to be divided by 2 to get u
     x
 end
-MOI.canget(instance::MOI.AbstractInstance, a::MOI.ConstraintDual, c::RSOCtoPSDCBridge) = true
-function MOI.get(instance::MOI.AbstractInstance, a::MOI.ConstraintDual, c::RSOCtoPSDCBridge)
+MOI.canget(instance::MOI.AbstractOptimizer, a::MOI.ConstraintDual, c::RSOCtoPSDCBridge) = true
+function MOI.get(instance::MOI.AbstractOptimizer, a::MOI.ConstraintDual, c::RSOCtoPSDCBridge)
     dual = MOI.get(instance, MOI.ConstraintDual(), c.cr)
     udual = sum(i -> dual[trimap(i, i)], 2:c.dim)
     [dual[1]; 2udual; dual[trimap.(2:c.dim, 1)]*2]
 end
 
-function MOI.delete!(instance::MOI.AbstractInstance, c::SOCtoPSDCBridge, RSOCtoPSDCBridge)
+function MOI.delete!(instance::MOI.AbstractOptimizer, c::SOCtoPSDCBridge, RSOCtoPSDCBridge)
     MOI.delete!(instance, c.cr)
 end

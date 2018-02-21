@@ -1,61 +1,61 @@
 """
-    initinstance!(s::AbstractSDSolverInstance, blkdims::Vector{Int}, nconstrs::Integer)
+    init!(optimizer::AbstractSDOptimizer, blkdims::Vector{Int}, nconstrs::Integer)
 
-Initialize the instance with nconstrs constraints and blkdims blocks.
+Initialize the optimizer with nconstrs constraints and blkdims blocks.
 """
-function initinstance! end
+function init! end
 
 """
-    setconstraintconstant!(s::AbstractSDSolverInstance, val, constr::Integer)
+    setconstraintconstant!(optimizer::AbstractSDOptimizer, val, constr::Integer)
 
 Sets the entry `constr` of `b` to `val`.
 """
 function setconstraintconstant! end
 
 """
-    setconstraintcoefficient!(m::AbstractSDSolverInstance, val, constr::Integer, blk::Integer, i::Integer, j::Integer)
+    setconstraintcoefficient!(optimizer::AbstractSDOptimizer, val, constr::Integer, blk::Integer, i::Integer, j::Integer)
 
 Sets the entry `i`, `j` of the block `blk` of the matrix of the constraint `constr` to `val`.
 """
 function setconstraintcoefficient! end
 
 """
-    setobjectivecoefficient!(m::AbstractSDSolverInstance, val, blk::Integer, i::Integer, j::Integer)
+    setobjectivecoefficient!(optimizer::AbstractSDOptimizer, val, blk::Integer, i::Integer, j::Integer)
 
 Sets the entry `i`, `j` of the block `blk` of the objective matrix to `val`.
 """
 function setobjectivecoefficient! end
 
 """
-    getX(m::AbstractSDSolverInstance)
+    getX(optimizer::AbstractSDOptimizer)
 
 Returns the solution X as a block matrix.
 """
 function getX end
 
 """
-    gety(m::AbstractSDSolverInstance)
+    gety(optimizer::AbstractSDOptimizer)
 
 Returns the solution y.
 """
 function gety end
 
 """
-    getZ(m::AbstractSDSolverInstance)
+    getZ(optimizer::AbstractSDOptimizer)
 
 Returns the solution Z.
 """
 function getZ end
 
 """
-    getprimalobjectivevalue(m::AbstractSDSolverInstance)
+    getprimalobjectivevalue(optimizer::AbstractSDOptimizer)
 
 Returns the primal objective value.
 """
 function getprimalobjectivevalue end
 
 """
-    getdualobjectivevalue(m::AbstractSDSolverInstance)
+    getdualobjectivevalue(optimizer::AbstractSDOptimizer)
 
 Returns the dual objective value.
 """

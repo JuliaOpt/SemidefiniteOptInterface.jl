@@ -46,7 +46,7 @@ function loadslack!(m::SOItoMOIBridge, c::Integer)
     blk, i, j, coef = m.slackmap[c]
     if blk != 0
         @assert !iszero(coef)
-        setconstraintcoefficient!(m.sdsolver, -coef, c, blk, i, j)
+        setconstraintcoefficient!(m.sdoptimizer, -coef, c, blk, i, j)
     end
 end
 function loadslacks!(m::SOItoMOIBridge, cs)
@@ -73,7 +73,7 @@ function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange, f::AF, s)
                 for (blk, i, j, coef, shift) in varmap(m, f.variables[i])
                     if !iszero(blk)
                         @assert !iszero(coef)
-                        setconstraintcoefficient!(m.sdsolver, val*coef, c, blk, i, j)
+                        setconstraintcoefficient!(m.sdoptimizer, val*coef, c, blk, i, j)
                     end
                     if isa(rhs, Vector)
                         rhs[row] -= val * shift
@@ -85,7 +85,7 @@ function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange, f::AF, s)
         end
         for j in 1:length(f.constant)
             c = cs[j]
-            setconstraintconstant!(m.sdsolver, rhs[j], c)
+            setconstraintconstant!(m.sdoptimizer, rhs[j], c)
         end
     end
 end

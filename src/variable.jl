@@ -89,8 +89,8 @@ function MOIU.loadconstraint!(m::SOItoMOIBridge{T}, ci::CI, f::VF, s::SupportedS
             @assert length(vm) == 1
             (blk, i, j, coef, shift) = first(vm)
             c = cs[k]
-            setconstraintcoefficient!(m.sdsolver, coef, c, blk, i, j)
-            setconstraintconstant!(m.sdsolver,  _getconstant(m, s) - coef * shift, c)
+            setconstraintcoefficient!(m.sdoptimizer, coef, c, blk, i, j)
+            setconstraintconstant!(m.sdoptimizer,  _getconstant(m, s) - coef * shift, c)
         end
     end
 end

@@ -19,7 +19,7 @@ function MOIU.load!(instance::SOItoMOIBridge, ::MOI.ObjectiveFunction, f::MOI.Sc
             for (blk, i, j, coef, shift) in varmap(instance, vi)
                 if !iszero(blk)
                     # in SDP format, it is max and in MPB Conic format it is min
-                    setobjectivecoefficient!(instance.sdsolver, instance.objsign * coef * val, blk, i, j)
+                    setobjectivecoefficient!(instance.sdoptimizer, instance.objsign * coef * val, blk, i, j)
                 end
                 instance.objshift += val * shift
             end
@@ -36,5 +36,5 @@ end
 function MOIU.loadvariables!(instance::SOItoMOIBridge, nvars)
     @assert nvars == length(instance.varmap)
     loadfreevariables!(instance)
-    initinstance!(instance.sdsolver, instance.blockdims, instance.nconstrs)
+    init!(instance.sdoptimizer, instance.blockdims, instance.nconstrs)
 end
