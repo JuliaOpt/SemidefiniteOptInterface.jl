@@ -6,12 +6,12 @@ function MOIU.allocate!(optimizer::SOItoMOIBridge, ::MOI.ObjectiveSense, sense::
     # To be sure that it is done before load!(optimizer, ::ObjectiveFunction, ...), we do it in allocate!
     optimizer.objsign = sense == MOI.MinSense ? -1 : 1
 end
-MOIU.canallocate(::SOItoMOIBridge, ::MOI.ObjectiveFunction) = true
+MOIU.canallocate(::SOItoMOIBridge{T}, ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{T}}) where T = true
 function MOIU.allocate!(::SOItoMOIBridge, ::MOI.ObjectiveFunction, ::MOI.ScalarAffineFunction) end
 
 MOIU.canload(m::SOItoMOIBridge, ::MOI.ObjectiveSense) = true
 function MOIU.load!(::SOItoMOIBridge, ::MOI.ObjectiveSense, ::MOI.OptimizationSense) end
-MOIU.canload(m::SOItoMOIBridge, ::MOI.ObjectiveFunction) = true
+MOIU.canload(m::SOItoMOIBridge{T}, ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{T}}) where T = true
 function MOIU.load!(optimizer::SOItoMOIBridge, ::MOI.ObjectiveFunction, f::MOI.ScalarAffineFunction)
     obj = MOIU.canonical(f)
     optimizer.objconstant = f.constant
