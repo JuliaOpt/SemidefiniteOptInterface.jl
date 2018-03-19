@@ -27,5 +27,5 @@ const config = MOIT.TestConfig(atol=1e-4, rtol=1e-4)
     MOIT.contlineartest(SplitInterval{Float64}(MOIU.CachingOptimizer(SDModelData{Float64}(), optimizer)), config)
 end
 @testset "Conic tests with optimizer" for optimizer in optimizers
-    MOIT.contconictest(RootDet{Float64}(GeoMean{Float64}(RSOCtoPSDC{Float64}(SOCtoPSDC{Float64}(MOIU.CachingOptimizer(SDModelData{Float64}(), optimizer))))), config, ["logdet", "exp"])
+    MOIT.contconictest(RootDet{Float64}(GeoMean{Float64}(RSOCtoPSDC{Float64}(SOCtoPSDC{Float64}(MOIU.CachingOptimizer(SDModelData{Float64}(), optimizer))))), config, ["psds", "rootdets", "logdet", "exp"])
 end
