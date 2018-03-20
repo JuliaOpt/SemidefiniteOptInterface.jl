@@ -113,7 +113,7 @@ function addconstant(optimizer::SOItoMOIBridge, ci::CI, x)
 end
 
 MOI.supports(::SOItoMOIBridge{T}, ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{T}}) where T = true
-MOI.supportsconstraint(::SOItoMOIBridge{T}, f::Type{<:Union{VF, AF{T}}}, ::Type{<:SupportedSets}) where T = true
+MOI.supportsconstraint(::SOItoMOIBridge{T}, ::Type{<:Union{VF, AF{T}}}, ::Type{<:SupportedSets}) where T = true
 MOI.copy!(dest::SOItoMOIBridge, src::MOI.ModelLike) = MOIU.allocateload!(dest, src)
 
 MOI.optimize!(m::SOItoMOIBridge) = MOI.optimize!(m.sdoptimizer)
