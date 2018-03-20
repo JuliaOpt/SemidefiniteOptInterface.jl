@@ -67,6 +67,21 @@ MOI.canaddvariable(optimizer::SOItoMOIBridge) = false
 
 include("load.jl")
 
+function MOI.isempty(optimizer::SOItoMOIBridge)
+    isempty(optimizer.double) &&
+    isempty(optimizer.setconstant) &&
+    iszero(optimizer.objconstant) &&
+    optimizer.objsign == 1 &&
+    iszero(optimizer.objshift) &&
+    iszero(optimizer.nconstrs) &&
+    iszero(optimizer.nblocks) &&
+    isempty(optimizer.blockdims) &&
+    isempty(optimizer.free) &&
+    isempty(optimizer.varmap) &&
+    isempty(optimizer.zeroblock) &&
+    isempty(optimizer.constrmap) &&
+    isempty(optimizer.slackmap)
+end
 function MOI.empty!(optimizer::SOItoMOIBridge{T}) where T
     for s in optimizer.double
         MOI.delete!(m, s)
