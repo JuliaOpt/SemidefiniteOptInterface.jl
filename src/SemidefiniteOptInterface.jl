@@ -114,7 +114,7 @@ end
 
 MOI.supports(::SOItoMOIBridge{T}, ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{T}}) where T = true
 MOI.supportsconstraint(::SOItoMOIBridge{T}, ::Type{<:Union{VF, AF{T}}}, ::Type{<:SupportedSets}) where T = true
-MOI.copy!(dest::SOItoMOIBridge, src::MOI.ModelLike) = MOIU.allocateload!(dest, src)
+MOI.copy!(dest::SOItoMOIBridge, src::MOI.ModelLike; copynames=true) = MOIU.allocateload!(dest, src, copynames)
 
 MOI.optimize!(m::SOItoMOIBridge) = MOI.optimize!(m.sdoptimizer)
 
