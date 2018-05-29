@@ -26,7 +26,7 @@ end
 
 nconstraints(f::Union{SVF, SAF}, s) = 1
 nconstraints(f::VVF, s) = length(f.variables)
-nconstraints(f::VAF, s) = length(f.constant)
+nconstraints(f::VAF, s) = MOIU.moilength(f)
 
 MOIU.canallocateconstraint(::SOItoMOIBridge{T}, f::Type{<:Union{VF, AF{T}}}, ::Type{<:SupportedSets}) where T = true
 function _allocateconstraint!(m::SOItoMOIBridge, f, s)
@@ -55,8 +55,10 @@ function loadslacks!(m::SOItoMOIBridge, cs)
     end
 end
 
-_row(f::SAF, i) = 1
-_row(f::VAF, i) = f.outputindex[i]
+output_index(::MOI.ScalarAffineTerm)  = 1
+output_index(t::MOI.VectorAffineTerm) = t.output_index
+scalar_term(t::MOI.ScalarAffineTerm) = t
+scalar_term(t::MOI.VectorAffineTerm) = t.scalar_term
 
 _getconstant(m::SOItoMOIBridge, s::MOI.AbstractScalarSet) = MOIU.getconstant(s)
 _getconstant(m::SOItoMOIBridge{T}, s::MOI.AbstractSet) where T = zero(T)
@@ -64,26 +66,25 @@ _getconstant(m::SOItoMOIBridge{T}, s::MOI.AbstractSet) where T = zero(T)
 function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange, f::AF, s)
     f = MOIU.canonical(f) # sum terms with same variables and same outputindex
     if !isempty(cs)
-        rhs = _getconstant(m, s) - f.constant
-        for i in 1:length(f.variables)
-            val = f.coefficients[i]
-            if !iszero(val)
-                row = _row(f, i)
-                c = cs[row]
-                for (blk, i, j, coef, shift) in varmap(m, f.variables[i])
+        rhs = _getconstant(m, s) - MOIU._constant(f)
+        for t in f.terms
+            st = scalar_term(t)
+            if !iszero(st.coefficient)
+                c = cs[output_index(t)]
+                for (blk, i, j, coef, shift) in varmap(m, st.variable_index)
                     if !iszero(blk)
                         @assert !iszero(coef)
-                        setconstraintcoefficient!(m.sdoptimizer, val*coef, c, blk, i, j)
+                        setconstraintcoefficient!(m.sdoptimizer, st.coefficient*coef, c, blk, i, j)
                     end
                     if isa(rhs, Vector)
-                        rhs[row] -= val * shift
+                        rhs[output_index(t)] -= st.coefficient * shift
                     else
-                        rhs -= val * shift
+                        rhs -= st.coefficient * shift
                     end
                 end
             end
         end
-        for j in 1:length(f.constant)
+        for j in 1:MOIU.moilength(f)
             c = cs[j]
             setconstraintconstant!(m.sdoptimizer, rhs[j], c)
         end

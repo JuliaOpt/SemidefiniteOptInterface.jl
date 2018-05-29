@@ -1,2 +1,2 @@
 julia 0.6
-MathOptInterface
+MathOptInterface 0.3 0.4
