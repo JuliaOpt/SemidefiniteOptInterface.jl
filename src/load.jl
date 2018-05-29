@@ -15,14 +15,14 @@ MOIU.canload(m::SOItoMOIBridge{T}, ::MOI.ObjectiveFunction{MOI.ScalarAffineFunct
 function MOIU.load!(optimizer::SOItoMOIBridge, ::MOI.ObjectiveFunction, f::MOI.ScalarAffineFunction)
     obj = MOIU.canonical(f)
     optimizer.objconstant = f.constant
-    for (vi, val) in zip(obj.variables, obj.coefficients)
-        if !iszero(val)
-            for (blk, i, j, coef, shift) in varmap(optimizer, vi)
+    for t in obj.terms
+        if !iszero(t.coefficient)
+            for (blk, i, j, coef, shift) in varmap(optimizer, t.variable_index)
                 if !iszero(blk)
                     # in SDP format, it is max and in MPB Conic format it is min
-                    setobjectivecoefficient!(optimizer.sdoptimizer, optimizer.objsign * coef * val, blk, i, j)
+                    setobjectivecoefficient!(optimizer.sdoptimizer, optimizer.objsign * coef * t.coefficient, blk, i, j)
                 end
-                optimizer.objshift += val * shift
+                optimizer.objshift += t.coefficient * shift
             end
         end
     end
