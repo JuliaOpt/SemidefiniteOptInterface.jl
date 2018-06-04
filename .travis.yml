@@ -25,10 +25,13 @@ addons:
 #before_script: # homebrew for mac
 #  - if [ $TRAVIS_OS_NAME = osx ]; then brew install gcc; fi
 
-before_script:
-  - julia -e 'Pkg.add("CSDP")'
-  - julia -e 'Pkg.checkout("CSDP")'
-  - julia -e 'Pkg.build("CSDP")'
+script:
+  - julia -e 'Pkg.clone(pwd());
+              Pkg.build("SemidefiniteOptInterface");
+              Pkg.add("CSDP");
+              Pkg.checkout("CSDP");
+              Pkg.build("CSDP");
+              Pkg.test("SemidefiniteOptInterface"; coverage=true)'
 
 after_success:
   # push coverage results to Coveralls
