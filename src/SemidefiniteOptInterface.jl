@@ -276,4 +276,7 @@ function MOI.get(m::SOItoMOIBridge{T}, ::MOI.ConstraintDual, ci::CI{F, DS}) wher
     scalevec!(_getattribute(m, ci, getdual), one(T)/2)
 end
 
+include("sdpa.jl")
+include("mock.jl")
+
 end # module
