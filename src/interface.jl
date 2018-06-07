@@ -1,4 +1,32 @@
 """
+    coefficienttype(optimizer::AbstractSDOptimizer)
+
+Returns the `coefficienttype` that should be used for `optimizer`.
+"""
+function coefficienttype end
+
+"""
+    getnumberofconstraints(optimizer::AbstractSDOptimizer)
+
+Returns the number of constraints of the model.
+"""
+function getnumberofconstraints end
+
+"""
+    getnumberofblocks(optimizer::AbstractSDOptimizer)
+
+Returns the number of blocks of the block matrix.
+"""
+function getnumberofblocks end
+
+"""
+    getblockdimension(optimizer::AbstractSDOptimizer, blk)
+
+Returns the dimension of the block `blk`.
+"""
+function getblockdimension end
+
+"""
     init!(optimizer::AbstractSDOptimizer, blkdims::Vector{Int}, nconstrs::Integer)
 
 Initialize the optimizer with nconstrs constraints and blkdims blocks.
@@ -6,25 +34,46 @@ Initialize the optimizer with nconstrs constraints and blkdims blocks.
 function init! end
 
 """
-    setconstraintconstant!(optimizer::AbstractSDOptimizer, val, constr::Integer)
+    getconstraintconstant(optimizer::AbstractSDOptimizer, constr::Integer)
 
 Sets the entry `constr` of `b` to `val`.
+"""
+function getconstraintconstant end
+
+"""
+    setconstraintconstant!(optimizer::AbstractSDOptimizer, val, constr::Integer)
+
+Get the entry `constr` of `b`.
 """
 function setconstraintconstant! end
 
 """
-    setconstraintcoefficient!(optimizer::AbstractSDOptimizer, val, constr::Integer, blk::Integer, i::Integer, j::Integer)
+    getobjectivecoefficients(optimizer::AbstractSDOptimizer)
 
-Sets the entry `i`, `j` of the block `blk` of the matrix of the constraint `constr` to `val`.
+Return the list of entries `blk`, `i`, `j` of the objective matrix.
 """
-function setconstraintcoefficient! end
+function getobjectivecoefficients end
 
 """
     setobjectivecoefficient!(optimizer::AbstractSDOptimizer, val, blk::Integer, i::Integer, j::Integer)
 
-Sets the entry `i`, `j` of the block `blk` of the objective matrix to `val`.
+Set the entry `i`, `j` of the block `blk` of the objective matrix to `val`.
 """
 function setobjectivecoefficient! end
+
+"""
+    getconstraintcoefficients(optimizer::AbstractSDOptimizer, constr::Integer)
+
+Return the list of entries `blk`, `i`, `j` of the matrix of the constraint `constr`.
+"""
+function getconstraintcoefficients end
+
+"""
+    setconstraintcoefficient!(optimizer::AbstractSDOptimizer, val, constr::Integer, blk::Integer, i::Integer, j::Integer)
+
+Set the entry `i`, `j` of the block `blk` of the matrix of the constraint `constr` to `val`.
+"""
+function setconstraintcoefficient! end
 
 """
     getX(optimizer::AbstractSDOptimizer)

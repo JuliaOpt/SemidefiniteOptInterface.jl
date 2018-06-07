@@ -1,13 +1,17 @@
 using SemidefiniteOptInterface
 using Base.Test
 
-import CSDP
-optimizers = [CSDP.CSDPOptimizer(printlevel=0)]
-
 using MathOptInterface
 const MOI = MathOptInterface
 const MOIT = MOI.Test
 const MOIB = MOI.Bridges
+
+const SDOI = SemidefiniteOptInterface
+
+include("sdpa.jl")
+
+import CSDP
+optimizers = [CSDP.CSDPOptimizer(printlevel=0)]
 
 const MOIU = MOI.Utilities
 MOIU.@model SDModelData () (EqualTo, GreaterThan, LessThan) (Zeros, Nonnegatives, Nonpositives, PositiveSemidefiniteConeTriangle) () (SingleVariable,) (ScalarAffineFunction,) (VectorOfVariables,) (VectorAffineFunction,)
