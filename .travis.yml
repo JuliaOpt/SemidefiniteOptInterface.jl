@@ -15,22 +15,6 @@ matrix:
   allow_failures:
   - julia: nightly
 
-addons:
-  apt: # apt-get for linux
-    packages:
-    - liblapack-dev
-    - libblas-dev
-#before_script: # homebrew for mac
-#  - if [ $TRAVIS_OS_NAME = osx ]; then brew install gcc; fi
-
-script:
-  - julia -e 'Pkg.clone(pwd());
-              Pkg.build("SemidefiniteOptInterface");
-              Pkg.add("CSDP");
-              Pkg.checkout("CSDP");
-              Pkg.build("CSDP");
-              Pkg.test("SemidefiniteOptInterface"; coverage=true)'
-
 after_success:
   # push coverage results to Coveralls
   - julia -e 'cd(Pkg.dir("SemidefiniteOptInterface")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())'
