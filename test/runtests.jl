@@ -20,3 +20,4 @@ cached_mock_optimizer = MOIU.CachingOptimizer(SDModelData{Float64}(), mock_optim
 config = MOIT.TestConfig(atol=1e-4, rtol=1e-4)
 
 include("contlinear.jl")
+include("contconic.jl")

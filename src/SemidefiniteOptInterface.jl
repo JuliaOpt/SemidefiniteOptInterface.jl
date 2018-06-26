@@ -173,7 +173,9 @@ function getblock(M, blk::Int, s::Type{<:MOI.AbstractVectorSet})
 end
 
 getvarprimal(m::SOItoMOIBridge, blk::Int, S) = getblock(getX(m.sdoptimizer), blk, S)
-getvardual(m::SOItoMOIBridge, blk::Int, S) = getblock(getZ(m.sdoptimizer), blk, S)
+function getvardual(m::SOItoMOIBridge, blk::Int, S)
+    getblock(getZ(m.sdoptimizer), blk, S)
+end
 
 function MOI.get(m::SOItoMOIBridge{T}, ::MOI.VariablePrimal, vi::VI) where T
     X = getX(m.sdoptimizer)

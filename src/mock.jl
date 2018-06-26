@@ -1,3 +1,7 @@
+struct BlockMatrix{T} <: AbstractMatrix{T}
+    blocks::Vector{Matrix{T}}
+end
+Base.getindex(BM::BlockMatrix, i::Integer) = BM.blocks[i]
 mutable struct MockSDOptimizer{T} <: AbstractSDOptimizer
     nconstrs::Int
     blkdims::Vector{Int}
@@ -10,8 +14,8 @@ mutable struct MockSDOptimizer{T} <: AbstractSDOptimizer
     terminationstatus::MOI.TerminationStatusCode
     primalstatus::MOI.ResultStatusCode
     dualstatus::MOI.ResultStatusCode
-    X::Vector{Matrix{T}}
-    Z::Vector{Matrix{T}}
+    X::BlockMatrix{T}
+    Z::BlockMatrix{T}
     y::Vector{T}
 end
 MockSDOptimizer{T}() where T = MockSDOptimizer{T}(0,
@@ -25,8 +29,8 @@ MockSDOptimizer{T}() where T = MockSDOptimizer{T}(0,
                                                   MOI.Success,
                                                   MOI.UnknownResultStatus,
                                                   MOI.UnknownResultStatus,
-                                                  Matrix{T}[],
-                                                  Matrix{T}[],
+                                                  BlockMatrix{T}(Matrix{T}[]),
+                                                  BlockMatrix{T}(Matrix{T}[]),
                                                   T[])
 mockSDoptimizer(T::Type) = SDOIOptimizer(MockSDOptimizer{T}(), T)
 coefficienttype(::MockSDOptimizer{T}) where T = T
@@ -74,6 +78,9 @@ function getprimalobjectivevalue(mock::MockSDOptimizer{T}) where T
     v = zero(T)
     for (α, blk, i, j) in mock.objective_coefficients
         v += α * mock.X[blk][i, j]
+        if i != j
+            v += α * mock.X[blk][j, i]
+        end
     end
     v
 end
@@ -129,7 +136,7 @@ end
 # Sets variable primal to varprim
 function MOIU.mock_varprimal!(mock::MockSDOptimizer) end
 function MOIU.mock_varprimal!(mock::MockSDOptimizer{T}, X::Vector{Matrix{T}}) where T
-    mock.X = X
+    mock.X = BlockMatrix{T}(X)
 end
 to_matrix(X::Matrix) = X
 function to_matrix(X::Vector)
@@ -161,7 +168,7 @@ function MOIU.mock_condual!(mock::MockSDOptimizer{T}, y::Vector{T}) where T
     mock.y = y
     # blockdims can be negative for diagonal blocks. We allocate full blocks
     # here. As mock optimizers are used only for testing, we favor simplicity.
-    mock.Z = map(n -> zeros(T, abs(n), abs(n)), mock.blkdims)
+    mock.Z = BlockMatrix{T}(map(n -> zeros(T, abs(n), abs(n)), mock.blkdims))
     # FIXME shouldn't Z be defined as the opposite i.e. Z = C - sum y_i A_i >= 0
     # instead of sum y_i A_i - C <= 0 ?
     if mock.dualstatus != MOI.InfeasibilityCertificate
@@ -169,11 +176,17 @@ function MOIU.mock_condual!(mock::MockSDOptimizer{T}, y::Vector{T}) where T
         # FIXME:check that this is also done IN MOIU.MockOptimizer
         for (α, blk, i, j) in mock.objective_coefficients
             mock.Z[blk][i, j] -= α
+            if i != j
+                mock.Z[blk][j, i] -= α
+            end
         end
     end
     for (c, constraint_coefficients) in enumerate(mock.constraint_coefficients)
         for (α, blk, i, j) in constraint_coefficients
             mock.Z[blk][i, j] += α * y[c]
+            if i != j
+                mock.Z[blk][j, i] += α * y[c]
+            end
         end
     end
 end
