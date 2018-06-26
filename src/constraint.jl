@@ -26,7 +26,7 @@ end
 
 nconstraints(f::Union{SVF, SAF}, s) = 1
 nconstraints(f::VVF, s) = length(f.variables)
-nconstraints(f::VAF, s) = MOIU.moilength(f)
+nconstraints(f::VAF, s) = MOI.output_dimension(f)
 
 MOIU.canallocateconstraint(::SOItoMOIBridge{T}, f::Type{<:Union{VF, AF{T}}}, ::Type{<:SupportedSets}) where T = true
 function _allocateconstraint!(m::SOItoMOIBridge, f, s)
@@ -84,7 +84,7 @@ function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange, f::AF, s)
                 end
             end
         end
-        for j in 1:MOIU.moilength(f)
+        for j in 1:MOI.output_dimension(f)
             c = cs[j]
             setconstraintconstant!(m.sdoptimizer, rhs[j], c)
         end
