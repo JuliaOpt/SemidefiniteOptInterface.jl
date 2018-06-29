@@ -29,6 +29,7 @@ const CI{F, S} = MOI.ConstraintIndex{F, S}
 mutable struct SOItoMOIBridge{T, SIT <: AbstractSDOptimizer} <: MOI.AbstractOptimizer
     sdoptimizer::SIT
     setconstant::Dict{Int64, T}
+    blkconstant::Dict{Int, T}
     objconstant::T
     objsign::Int
     objshift::T
@@ -42,7 +43,7 @@ mutable struct SOItoMOIBridge{T, SIT <: AbstractSDOptimizer} <: MOI.AbstractOpti
     slackmap::Vector{Tuple{Int, Int, Int, T}} # c -> blk, i, j, coef
     double::Vector{CI} # created when there are two cones for same variable
     function SOItoMOIBridge{T}(sdoptimizer::SIT) where {T, SIT}
-        new{T, SIT}(sdoptimizer, Dict{Int64, T}(),
+        new{T, SIT}(sdoptimizer, Dict{Int64, T}(), Dict{Int, T}(),
             zero(T), 1, zero(T), 0, 0,
             Int[],
             IntSet(),
@@ -70,6 +71,7 @@ include("load.jl")
 function MOI.isempty(optimizer::SOItoMOIBridge)
     isempty(optimizer.double) &&
     isempty(optimizer.setconstant) &&
+    isempty(optimizer.blkconstant) &&
     iszero(optimizer.objconstant) &&
     optimizer.objsign == 1 &&
     iszero(optimizer.objshift) &&
@@ -88,6 +90,7 @@ function MOI.empty!(optimizer::SOItoMOIBridge{T}) where T
     end
     optimizer.double = CI[]
     optimizer.setconstant = Dict{Int64, T}()
+    optimizer.blkconstant = Dict{Int, T}()
     optimizer.objconstant = zero(T)
     optimizer.objsign = 1
     optimizer.objshift = zero(T)
@@ -105,14 +108,22 @@ function setconstant!(optimizer::SOItoMOIBridge, ci::CI, s) end
 function setconstant!(optimizer::SOItoMOIBridge, ci::CI, s::MOI.AbstractScalarSet)
     optimizer.setconstant[ci.value] = MOIU.getconstant(s)
 end
-function addconstant(optimizer::SOItoMOIBridge, ci::CI{<:Any, <:MOI.AbstractScalarSet}, x)
+function addsetconstant(optimizer::SOItoMOIBridge, ci::CI{<:Any, <:MOI.AbstractScalarSet}, x)
     x + optimizer.setconstant[ci.value]
 end
-function addconstant(optimizer::SOItoMOIBridge, ci::CI, x)
+function addsetconstant(optimizer::SOItoMOIBridge, ci::CI, x)
+    x
+end
+function addblkconstant(optimizer::SOItoMOIBridge, ci::CI{<:Any, <:Union{NS, PS}}, x)
+    blk = -ci.value
+    x + optimizer.blkconstant[blk]
+end
+function addblkconstant(optimizer::SOItoMOIBridge, ci::CI, x)
     x
 end
 
-MOI.supports(::SOItoMOIBridge{T}, ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{T}}) where T = true
+
+MOI.supports(::SOItoMOIBridge{T}, ::MOI.ObjectiveFunction{<:Union{MOI.SingleVariable, MOI.ScalarAffineFunction{T}}}) where T = true
 MOI.supportsconstraint(::SOItoMOIBridge{T}, ::Type{<:Union{VF, AF{T}}}, ::Type{<:SupportedSets}) where T = true
 MOI.copy!(dest::SOItoMOIBridge, src::MOI.ModelLike; copynames=true) = MOIU.allocateload!(dest, src, copynames)
 
@@ -216,11 +227,11 @@ end
 
 function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal, ci::CI{F, S}) where {F, S}
     if ci.value >= 0
-        addconstant(m, ci, _getattribute(m, ci, getslack))
+        addsetconstant(m, ci, _getattribute(m, ci, getslack))
     else
         # Variable Function-in-S with S different from Zeros and EqualTo and not a double variable constraint
         blk = -ci.value
-        getvarprimal(m, blk, S)
+        addblkconstant(m, ci, getvarprimal(m, blk, S))
     end
 end
 

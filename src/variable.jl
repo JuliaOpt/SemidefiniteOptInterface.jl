@@ -28,8 +28,10 @@ _enumerate(vi::VI) = enumerate((vi,))
 _enumerate(vi::Vector{VI}) = enumerate(vi)
 function _constraintvariable!(m::SOItoMOIBridge, vs::VIS, s::S) where S<:Union{NS, PS}
     blk = newblock(m, -_length(vs))
+    cst = _getconstant(m, s)
+    m.blkconstant[blk] = cst
     for (i, v) in _enumerate(vs)
-        setvarmap!(m, v, (blk, i, i, vscaling(S), _getconstant(m, s)))
+        setvarmap!(m, v, (blk, i, i, vscaling(S), cst))
         unfree(m, v)
     end
     blk
