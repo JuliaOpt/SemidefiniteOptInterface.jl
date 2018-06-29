@@ -6,26 +6,33 @@ function MOIU.allocate!(optimizer::SOItoMOIBridge, ::MOI.ObjectiveSense, sense::
     # To be sure that it is done before load!(optimizer, ::ObjectiveFunction, ...), we do it in allocate!
     optimizer.objsign = sense == MOI.MinSense ? -1 : 1
 end
-MOIU.canallocate(::SOItoMOIBridge{T}, ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{T}}) where T = true
-function MOIU.allocate!(::SOItoMOIBridge, ::MOI.ObjectiveFunction, ::MOI.ScalarAffineFunction) end
+MOIU.canallocate(::SOItoMOIBridge{T}, ::MOI.ObjectiveFunction{<:Union{MOI.SingleVariable, MOI.ScalarAffineFunction{T}}}) where T = true
+function MOIU.allocate!(::SOItoMOIBridge, ::MOI.ObjectiveFunction, ::Union{MOI.SingleVariable, MOI.ScalarAffineFunction}) end
 
 MOIU.canload(m::SOItoMOIBridge, ::MOI.ObjectiveSense) = true
 function MOIU.load!(::SOItoMOIBridge, ::MOI.ObjectiveSense, ::MOI.OptimizationSense) end
-MOIU.canload(m::SOItoMOIBridge{T}, ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{T}}) where T = true
+MOIU.canload(m::SOItoMOIBridge{T}, ::MOI.ObjectiveFunction{<:Union{MOI.SingleVariable, MOI.ScalarAffineFunction{T}}}) where T = true
+# Loads objective coefficient α * vi
+function load_objective_term!(optimizer::SOItoMOIBridge, α, vi::MOI.VariableIndex)
+    for (blk, i, j, coef, shift) in varmap(optimizer, vi)
+        if !iszero(blk)
+            # in SDP format, it is max and in MPB Conic format it is min
+            setobjectivecoefficient!(optimizer.sdoptimizer, optimizer.objsign * coef * α, blk, i, j)
+        end
+        optimizer.objshift += α * shift
+    end
+end
 function MOIU.load!(optimizer::SOItoMOIBridge, ::MOI.ObjectiveFunction, f::MOI.ScalarAffineFunction)
     obj = MOIU.canonical(f)
     optimizer.objconstant = f.constant
     for t in obj.terms
         if !iszero(t.coefficient)
-            for (blk, i, j, coef, shift) in varmap(optimizer, t.variable_index)
-                if !iszero(blk)
-                    # in SDP format, it is max and in MPB Conic format it is min
-                    setobjectivecoefficient!(optimizer.sdoptimizer, optimizer.objsign * coef * t.coefficient, blk, i, j)
-                end
-                optimizer.objshift += t.coefficient * shift
-            end
+            load_objective_term!(optimizer, t.coefficient, t.variable_index)
         end
     end
+end
+function MOIU.load!(optimizer::SOItoMOIBridge{T}, ::MOI.ObjectiveFunction, f::MOI.SingleVariable) where T
+    load_objective_term!(optimizer, one(T), f.variable)
 end
 
 function MOIU.allocatevariables!(optimizer::SOItoMOIBridge{T}, nvars) where T
