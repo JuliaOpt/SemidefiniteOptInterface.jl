@@ -1,17 +1,13 @@
 include("variable.jl")
 include("constraint.jl")
 
-MOIU.canallocate(::SOItoMOIBridge, ::MOI.ObjectiveSense) = true
 function MOIU.allocate!(optimizer::SOItoMOIBridge, ::MOI.ObjectiveSense, sense::MOI.OptimizationSense)
     # To be sure that it is done before load!(optimizer, ::ObjectiveFunction, ...), we do it in allocate!
     optimizer.objsign = sense == MOI.MinSense ? -1 : 1
 end
-MOIU.canallocate(::SOItoMOIBridge{T}, ::MOI.ObjectiveFunction{<:Union{MOI.SingleVariable, MOI.ScalarAffineFunction{T}}}) where T = true
 function MOIU.allocate!(::SOItoMOIBridge, ::MOI.ObjectiveFunction, ::Union{MOI.SingleVariable, MOI.ScalarAffineFunction}) end
 
-MOIU.canload(m::SOItoMOIBridge, ::MOI.ObjectiveSense) = true
 function MOIU.load!(::SOItoMOIBridge, ::MOI.ObjectiveSense, ::MOI.OptimizationSense) end
-MOIU.canload(m::SOItoMOIBridge{T}, ::MOI.ObjectiveFunction{<:Union{MOI.SingleVariable, MOI.ScalarAffineFunction{T}}}) where T = true
 # Loads objective coefficient α * vi
 function load_objective_term!(optimizer::SOItoMOIBridge, α, vi::MOI.VariableIndex)
     for (blk, i, j, coef, shift) in varmap(optimizer, vi)

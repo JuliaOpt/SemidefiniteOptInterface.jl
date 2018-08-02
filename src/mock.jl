@@ -63,7 +63,6 @@ end
 
 MOI.canget(mock::MockSDOptimizer, ::MOI.PrimalStatus) = mock.hasprimal
 MOI.canget(mock::MockSDOptimizer, ::MOI.DualStatus) = mock.hasdual
-MOI.canset(mock::MockSDOptimizer, ::Union{MOI.PrimalStatus,MOI.DualStatus}) = true
 MOI.get(mock::MockSDOptimizer, ::MOI.TerminationStatus) = mock.terminationstatus
 MOI.set!(mock::MockSDOptimizer, ::MOI.TerminationStatus, value::MOI.TerminationStatusCode) = (mock.terminationstatus = value)
 MOI.get(mock::MockSDOptimizer, ::MOI.PrimalStatus) = mock.primalstatus
