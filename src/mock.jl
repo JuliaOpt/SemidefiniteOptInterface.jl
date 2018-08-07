@@ -1,7 +1,34 @@
-struct BlockMatrix{T} <: AbstractMatrix{T}
+abstract type AbstractBlockMatrix{T} <: AbstractMatrix{T} end
+struct BlockMatrix{T} <: AbstractBlockMatrix{T}
     blocks::Vector{Matrix{T}}
 end
-Base.getindex(BM::BlockMatrix, i::Integer) = BM.blocks[i]
+nblocks(bm::BlockMatrix) = length(bm.blocks)
+block(bm::BlockMatrix, i::Integer) = bm.blocks[i]
+
+function Base.size(bm::AbstractBlockMatrix)
+    n = sum(blk -> Compat.LinearAlgebra.checksquare(block(bm, blk)),
+            1:nblocks(bm))
+    return (n, n)
+end
+function Base.getindex(bm::AbstractBlockMatrix, i::Integer, j::Integer)
+    (i < 0 || j < 0) && throw(BoundsError(i, j))
+    for k in 1:nblocks(bm)
+        blk = block(bm, k)
+        n = size(blk, 1)
+        if i <= n && j <= n
+            return blk[i, j]
+        elseif i <= n || j <= n
+            return 0
+        else
+            i -= n
+            j -= n
+        end
+    end
+    i, j = (i, j) .+ size(bm)
+    throw(BoundsError(i, j))
+end
+Base.getindex(A::AbstractBlockMatrix, I::Tuple) = getindex(A, I...)
+
 mutable struct MockSDOptimizer{T} <: AbstractSDOptimizer
     nconstrs::Int
     blkdims::Vector{Int}
@@ -76,9 +103,9 @@ gety(mock::MockSDOptimizer) = mock.y
 function getprimalobjectivevalue(mock::MockSDOptimizer{T}) where T
     v = zero(T)
     for (α, blk, i, j) in mock.objective_coefficients
-        v += α * mock.X[blk][i, j]
+        v += α * block(mock.X, blk)[i, j]
         if i != j
-            v += α * mock.X[blk][j, i]
+            v += α * block(mock.X, blk)[j, i]
         end
     end
     v
@@ -174,17 +201,17 @@ function MOIU.mock_condual!(mock::MockSDOptimizer{T}, y::Vector{T}) where T
         # Infeasibility certificate is a ray so we only take the homogeneous part
         # FIXME:check that this is also done IN MOIU.MockOptimizer
         for (α, blk, i, j) in mock.objective_coefficients
-            mock.Z[blk][i, j] -= α
+            block(mock.Z, blk)[i, j] -= α
             if i != j
-                mock.Z[blk][j, i] -= α
+                block(mock.Z, blk)[j, i] -= α
             end
         end
     end
     for (c, constraint_coefficients) in enumerate(mock.constraint_coefficients)
         for (α, blk, i, j) in constraint_coefficients
-            mock.Z[blk][i, j] += α * y[c]
+            block(mock.Z, blk)[i, j] += α * y[c]
             if i != j
-                mock.Z[blk][j, i] += α * y[c]
+                block(mock.Z, blk)[j, i] += α * y[c]
             end
         end
     end

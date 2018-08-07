@@ -1,5 +1,5 @@
 function createslack!(m::SOItoMOIBridge{T}, cs, ::ZS) where T
-    m.slackmap[cs] = (0, 0, 0, zero(T))
+    m.slackmap[cs] .= ((0, 0, 0, zero(T)),)
 end
 function createslack!(m::SOItoMOIBridge, cs, ::S) where S <: Union{NS, PS}
     blk = newblock(m, -length(cs))
@@ -31,7 +31,7 @@ nconstraints(f::VAF, s) = MOI.output_dimension(f)
 function _allocateconstraint!(m::SOItoMOIBridge, f, s)
     ci = CI{typeof(f), typeof(s)}(m.nconstrs)
     n = nconstraints(f, s)
-    m.constrmap[ci] = m.nconstrs + (1:n)
+    m.constrmap[ci] = m.nconstrs .+ (1:n)
     m.nconstrs += n
     resize!(m.slackmap, m.nconstrs)
     createslack!(m, ci, f, s)
@@ -65,7 +65,7 @@ _getconstant(m::SOItoMOIBridge{T}, s::MOI.AbstractSet) where T = zero(T)
 function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange, f::AF, s)
     f = MOIU.canonical(f) # sum terms with same variables and same outputindex
     if !isempty(cs)
-        rhs = _getconstant(m, s) - MOIU._constant(f)
+        rhs = _getconstant(m, s) .- MOIU._constant(f)
         for t in f.terms
             st = scalar_term(t)
             if !iszero(st.coefficient)

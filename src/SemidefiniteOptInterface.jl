@@ -4,6 +4,9 @@ using MathOptInterface
 const MOI = MathOptInterface
 const MOIU = MOI.Utilities
 
+using Compat
+using Compat.LinearAlgebra # for diag
+
 abstract type AbstractSDOptimizer <: MOI.AbstractOptimizer end
 
 include("interface.jl")
@@ -36,8 +39,8 @@ mutable struct SOItoMOIBridge{T, SIT <: AbstractSDOptimizer} <: MOI.AbstractOpti
     nconstrs::Int
     nblocks::Int
     blockdims::Vector{Int}
-    free::IntSet
-    varmap::Vector{Vector{Tuple{Int, Int, Int, T, T}}} # Variable Index vi -> blk, i, j, coef, shift # x = sum coef * X[blk][i, j] + shift
+    free::BitSet
+    varmap::Vector{Vector{Tuple{Int, Int, Int, T, T}}} # Variable Index vi -> blk, i, j, coef, shift # x = sum coef * block(X, blk)[i, j] + shift
     zeroblock::Dict{CI, Int}
     constrmap::Dict{CI, UnitRange{Int}} # Constraint Index ci -> cs
     slackmap::Vector{Tuple{Int, Int, Int, T}} # c -> blk, i, j, coef
@@ -46,7 +49,7 @@ mutable struct SOItoMOIBridge{T, SIT <: AbstractSDOptimizer} <: MOI.AbstractOpti
         new{T, SIT}(sdoptimizer, Dict{Int64, T}(), Dict{Int, T}(),
             zero(T), 1, zero(T), 0, 0,
             Int[],
-            IntSet(),
+            BitSet(),
             Vector{Tuple{Int, Int, Int, T}}[],
             Dict{CI, Int}(),
             Dict{CI, UnitRange{Int}}(),
@@ -95,7 +98,7 @@ function MOI.empty!(optimizer::SOItoMOIBridge{T}) where T
     optimizer.nconstrs = 0
     optimizer.nblocks = 0
     optimizer.blockdims = Int[]
-    optimizer.free = IntSet()
+    optimizer.free = BitSet()
     optimizer.varmap = Vector{Tuple{Int, Int, Int, T}}[]
     optimizer.zeroblock = Dict{CI, Int}()
     optimizer.constrmap = Dict{CI, UnitRange{Int}}()
@@ -114,7 +117,7 @@ function addsetconstant(optimizer::SOItoMOIBridge, ci::CI, x)
 end
 function addblkconstant(optimizer::SOItoMOIBridge, ci::CI{<:Any, <:Union{NS, PS}}, x)
     blk = -ci.value
-    x + optimizer.blkconstant[blk]
+    x .+ optimizer.blkconstant[blk]
 end
 function addblkconstant(optimizer::SOItoMOIBridge, ci::CI, x)
     x
@@ -186,18 +189,18 @@ MOI.canget(m::SOItoMOIBridge, ::Union{MOI.VariablePrimal,
                                       MOI.ConstraintDual}, ::Type{<:MOI.Index}) = true
 
 function _getblock(M, blk::Int, s::Type{<:Union{NS, ZS}})
-    diag(M[blk])
+    diag(block(M, blk))
 end
 function _getblock(M, blk::Int, s::Type{<:PS})
-    -diag(M[blk])
+    -diag(block(M, blk))
 end
 # Vectorized length for matrix dimension d
 sympackedlen(d::Integer) = (d*(d+1)) >> 1
 function _getblock(M::AbstractMatrix{T}, blk::Int, s::Type{<:DS}) where T
-    B = M[blk]
-    d = Base.LinAlg.checksquare(B)
+    B = block(M, blk)
+    d = Compat.LinearAlgebra.checksquare(B)
     n = sympackedlen(d)
-    v = Vector{T}(n)
+    v = Vector{T}(undef, n)
     k = 0
     for j in 1:d
         for i in 1:j
@@ -228,7 +231,7 @@ function MOI.get(m::SOItoMOIBridge{T}, ::MOI.VariablePrimal, vi::VI) where T
     for (blk, i, j, coef, shift) in varmap(m, vi)
         x += shift
         if blk != 0
-            x += X[blk][i, j] * sign(coef)
+            x += block(X, blk)[i, j] * sign(coef)
         end
     end
     x
@@ -253,9 +256,9 @@ function getslack(m::SOItoMOIBridge{T}, c::Int) where T
         zero(T)
     else
         if i != j
-            coef *= 2 # We should take X[blk][i, j] + X[blk][j, i] but they are equal
+            coef *= 2 # We should take block(X, blk)[i, j] + block(X, blk)[j, i] but they are equal
         end
-        coef * X[blk][i, j]
+        coef * block(X, blk)[i, j]
     end
 end
 
@@ -274,7 +277,7 @@ function getvardual(m::SOItoMOIBridge{T}, vi::VI) where T
     z = zero(T)
     for (blk, i, j, coef) in varmap(m, vi)
         if blk != 0
-            z += Z[blk][i, j] * sign(coef)
+            z += block(Z, blk)[i, j] * sign(coef)
         end
     end
     z
@@ -319,7 +322,8 @@ function scalevec!(v, c)
     end
     v
 end
-function MOI.get(m::SOItoMOIBridge{T}, ::MOI.ConstraintDual, ci::CI{F, DS}) where {T,F}
+function MOI.get(m::SOItoMOIBridge{T}, ::MOI.ConstraintDual,
+                 ci::CI{<:AF{T}, DS}) where T
     scalevec!(_getattribute(m, ci, getdual), one(T)/2)
 end
 

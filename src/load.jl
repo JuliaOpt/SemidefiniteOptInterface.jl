@@ -32,8 +32,8 @@ function MOIU.load!(optimizer::SOItoMOIBridge{T}, ::MOI.ObjectiveFunction, f::MO
 end
 
 function MOIU.allocatevariables!(optimizer::SOItoMOIBridge{T}, nvars) where T
-    optimizer.free = IntSet(1:nvars)
-    optimizer.varmap = Vector{Vector{Tuple{Int, Int, Int, T, T}}}(nvars)
+    optimizer.free = BitSet(1:nvars)
+    optimizer.varmap = Vector{Vector{Tuple{Int, Int, Int, T, T}}}(undef, nvars)
     VI.(1:nvars)
 end
 
