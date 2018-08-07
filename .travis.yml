@@ -11,14 +11,6 @@ notifications:
 git:
   depth: 99999999
 
-matrix:
-  allow_failures:
-  - julia: 0.7
-
-before_script:
-  - julia -e 'Pkg.add("MathOptInterface")'
-  - julia -e 'Pkg.checkout("MathOptInterface")'
-
 after_success:
   # push coverage results to Coveralls
   - julia -e 'cd(Pkg.dir("SemidefiniteOptInterface")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())'
