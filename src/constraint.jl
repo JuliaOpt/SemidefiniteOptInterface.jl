@@ -31,7 +31,9 @@ nconstraints(f::VAF, s) = MOI.output_dimension(f)
 function _allocateconstraint!(m::SOItoMOIBridge, f, s)
     ci = CI{typeof(f), typeof(s)}(m.nconstrs)
     n = nconstraints(f, s)
-    m.constrmap[ci] = m.nconstrs .+ (1:n)
+    # Fails on Julia v0.6
+    #m.constrmap[ci] = m.nconstrs .+ (1:n)
+    m.constrmap[ci] = (m.nconstrs + 1):(m.nconstrs + n)
     m.nconstrs += n
     resize!(m.slackmap, m.nconstrs)
     createslack!(m, ci, f, s)
