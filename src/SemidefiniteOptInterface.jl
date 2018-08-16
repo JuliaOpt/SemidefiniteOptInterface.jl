@@ -123,43 +123,17 @@ function addblkconstant(optimizer::SOItoMOIBridge, ci::CI, x)
     x
 end
 
-function MOI.supports(optimizer::SOItoMOIBridge,
-                      ::Union{MOI.ConstraintFunction,
-                              MOI.ConstraintSet},
-                      ::Type{<:CI})
-    return true
-end
-function MOI.set!(optimizer::SOItoMOIBridge,
-                  attr::Union{MOI.ConstraintFunction,
-                              MOI.ConstraintSet},
-                  ::CI,
-                  value)
-    throw(MOI.CannotSetAttribute(attr, "Copy-only solver"))
-end
-
 function MOI.supports(optimizer::SOItoMOIBridge{T},
                       ::Union{MOI.ObjectiveSense,
                               MOI.ObjectiveFunction{<:Union{MOI.SingleVariable,
                                                             MOI.ScalarAffineFunction{T}}}}) where T
     return true
 end
-function MOI.set!(optimizer::SOItoMOIBridge{T},
-                  attr::Union{MOI.ObjectiveSense,
-                              MOI.ObjectiveFunction{<:Union{MOI.SingleVariable,
-                                                            MOI.ScalarAffineFunction{T}}}},
-                 value) where T
-    throw(MOI.CannotSetAttribute(attr, "Copy-only solver"))
-end
 
 function MOI.supportsconstraint(::SOItoMOIBridge{T},
                                 ::Type{<:Union{VF, AF{T}}},
                                 ::Type{<:SupportedSets}) where T
     return true
-end
-function MOI.addconstraint!(::SOItoMOIBridge{T},
-                            func::Union{VF, AF{T}},
-                            set::SupportedSets) where T
-    throw(MOI.CannotAddConstraint{typeof(func), typeof(set)}("Copy-only solver"))
 end
 
 MOI.copy!(dest::SOItoMOIBridge, src::MOI.ModelLike; copynames=true) = MOIU.allocateload!(dest, src, copynames)
