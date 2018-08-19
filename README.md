@@ -8,7 +8,7 @@
 This package make it easy to implement the API of [MathOptInterface](https://github.com/JuliaOpt/MathOptInterface.jl) for semidefinite programming solver like [CSDP](https://github.com/JuliaOpt/CSDP.jl), [SDPA](https://github.com/blegat/SDPA.jl), [DSDP](https://github.com/joehuchette/DSDP.jl) and [SDPLR](https://github.com/blegat/SDPLR.jl) that require the problem to be described in the following form:
 ```
 max ⟨C, X⟩            min ⟨b, y⟩
-    ⟨A_i, X⟩ = b_i        ∑ A_i y_i ⪯ C
+    ⟨A_i, X⟩ = b_i        ∑ A_i y_i ⪰ C
           X  ⪰ 0
 ```
 The well known [SDPA file format](http://plato.asu.edu/ftp/sdpa_format.txt) uses this form but this package communicates to the solver directly and the solver wrappers use the C/C++ API without using a file.
