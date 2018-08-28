@@ -61,27 +61,27 @@ function _constraintvariable!(m::SOItoMOIBridge{T}, vs::VIS, ::DS) where T
 end
 _var(f::SVF) = f.variable
 _var(f::VVF) = f.variables
-function MOIU.allocateconstraint!(m::SOItoMOIBridge{T}, f::VF, s::SupportedSets) where T
+function MOIU.allocate_constraint(m::SOItoMOIBridge{T}, f::VF, s::SupportedSets) where T
     vis = _var(f)
     fr = isfree(m, vis)
     if fr
         blk = _constraintvariable!(m, vis, s)
         if isa(s, ZS)
-            ci = _allocateconstraint!(m, f, s)
+            ci = _allocate_constraint(m, f, s)
             m.zeroblock[ci] = blk
             ci
         else
             CI{typeof(f), typeof(s)}(-blk)
         end
     else
-        _allocateconstraint!(m, f, s)
+        _allocate_constraint(m, f, s)
     end
 end
 
 _var(f::SVF, j) = f.variable
 _var(f::VVF, j) = f.variables[j]
-function MOIU.loadconstraint!(m::SOItoMOIBridge, ci::CI, f::VF, s::SupportedSets)
-    if ci.value >= 0 # i.e. s is ZS or _var(f) wasn't free at allocateconstraint!
+function MOIU.load_constraint(m::SOItoMOIBridge, ci::CI, f::VF, s::SupportedSets)
+    if ci.value >= 0 # i.e. s is ZS or _var(f) wasn't free at allocate_constraint
         setconstant!(m, ci, s)
         cs = m.constrmap[ci]
         @assert !isempty(cs)

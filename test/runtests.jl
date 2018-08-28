@@ -12,11 +12,21 @@ const MOIB = MOI.Bridges
 include("sdpa.jl")
 
 const MOIU = MOI.Utilities
-MOIU.@model SDModelData () (EqualTo, GreaterThan, LessThan) (Zeros, Nonnegatives, Nonpositives, PositiveSemidefiniteConeTriangle) () (SingleVariable,) (ScalarAffineFunction,) (VectorOfVariables,) (VectorAffineFunction,)
+MOIU.@model(SDModelData,
+            (),
+            (MOI.EqualTo, MOI.GreaterThan, MOI.LessThan),
+            (MOI.Zeros, MOI.Nonnegatives, MOI.Nonpositives,
+             MOI.PositiveSemidefiniteConeTriangle),
+            (),
+            (MOI.SingleVariable,),
+            (MOI.ScalarAffineFunction,),
+            (MOI.VectorOfVariables,),
+            (MOI.VectorAffineFunction,))
 
 mock = SDOI.MockSDOptimizer{Float64}()
 mock_optimizer = SDOI.SDOIOptimizer(mock, Float64)
-cached_mock_optimizer = MOIU.CachingOptimizer(SDModelData{Float64}(), mock_optimizer)
+cached_mock_optimizer = MOIU.CachingOptimizer(SDModelData{Float64}(),
+                                              mock_optimizer)
 config = MOIT.TestConfig(atol=1e-4, rtol=1e-4)
 
 include("unit.jl")

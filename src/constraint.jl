@@ -28,7 +28,7 @@ nconstraints(f::Union{SVF, SAF}, s) = 1
 nconstraints(f::VVF, s) = length(f.variables)
 nconstraints(f::VAF, s) = MOI.output_dimension(f)
 
-function _allocateconstraint!(m::SOItoMOIBridge, f, s)
+function _allocate_constraint(m::SOItoMOIBridge, f, s)
     ci = CI{typeof(f), typeof(s)}(m.nconstrs)
     n = nconstraints(f, s)
     # Fails on Julia v0.6
@@ -39,8 +39,8 @@ function _allocateconstraint!(m::SOItoMOIBridge, f, s)
     createslack!(m, ci, f, s)
     ci
 end
-function MOIU.allocateconstraint!(m::SOItoMOIBridge, f::AF, s::SupportedSets)
-    _allocateconstraint!(m::SOItoMOIBridge, f, s)
+function MOIU.allocate_constraint(m::SOItoMOIBridge, f::AF, s::SupportedSets)
+    _allocate_constraint(m::SOItoMOIBridge, f, s)
 end
 
 function loadslack!(m::SOItoMOIBridge, c::Integer)
@@ -67,7 +67,7 @@ _getconstant(m::SOItoMOIBridge{T}, s::MOI.AbstractSet) where T = zero(T)
 function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange, f::AF, s)
     f = MOIU.canonical(f) # sum terms with same variables and same outputindex
     if !isempty(cs)
-        rhs = _getconstant(m, s) .- MOIU._constant(f)
+        rhs = _getconstant(m, s) .- MOI._constant(f)
         for t in f.terms
             st = scalar_term(t)
             if !iszero(st.coefficient)
@@ -92,7 +92,7 @@ function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange, f::AF, s)
     end
 end
 
-function MOIU.loadconstraint!(m::SOItoMOIBridge, ci::CI, f::AF, s::SupportedSets)
+function MOIU.load_constraint(m::SOItoMOIBridge, ci::CI, f::AF, s::SupportedSets)
     setconstant!(m, ci, s)
     cs = m.constrmap[ci]
     @assert !isempty(cs)
