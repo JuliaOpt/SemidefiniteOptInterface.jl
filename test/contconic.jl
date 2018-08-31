@@ -17,11 +17,11 @@
                                                                     [70.2006, -7.0, -2.0, 4.0]))
         MOIT.lin2vtest(cached_mock_optimizer, config)
         MOIU.set_mock_optimize!(mock, (mock) -> MOIU.mock_optimize!(mock,
-                                                                    tuple(),
+                                                                    MOI.InfeasiblePoint,
                                                                     [-0.5, 0.5]))
         MOIT.lin3test(cached_mock_optimizer, config)
         MOIU.set_mock_optimize!(mock, (mock) -> MOIU.mock_optimize!(mock,
-                                                                    tuple(),
+                                                                    MOI.InfeasiblePoint,
                                                                     [-1.0]))
         MOIT.lin4test(cached_mock_optimizer, config)
     end
@@ -43,7 +43,7 @@
                                                                     [-1.4142, 1.0, -0.7071, -1.0, -0.3536, 1.0, 0.7071, -0.3536]))
         MOIT.soc2ptest(MOIB.SOCtoPSD{Float64}(cached_mock_optimizer), config)
         MOIU.set_mock_optimize!(mock, (mock) -> MOIU.mock_optimize!(mock,
-                                                                    tuple(),
+                                                                    MOI.InfeasiblePoint,
                                                                     [-1.0, 1.0, -0.5, 1.0, -0.5]))
         MOIT.soc3test(MOIB.SOCtoPSD{Float64}(cached_mock_optimizer), config)
         MOIU.set_mock_optimize!(mock, (mock) -> MOIU.mock_optimize!(mock,

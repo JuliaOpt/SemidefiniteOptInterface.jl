@@ -88,14 +88,12 @@ function setconstraintcoefficient!(optimizer::MockSDOptimizer, val, c::Integer, 
     push!(optimizer.constraint_coefficients[c], (val, blk, i, j))
 end
 
-MOI.canget(mock::MockSDOptimizer, ::MOI.PrimalStatus) = mock.hasprimal
-MOI.canget(mock::MockSDOptimizer, ::MOI.DualStatus) = mock.hasdual
 MOI.get(mock::MockSDOptimizer, ::MOI.TerminationStatus) = mock.terminationstatus
-MOI.set!(mock::MockSDOptimizer, ::MOI.TerminationStatus, value::MOI.TerminationStatusCode) = (mock.terminationstatus = value)
+MOI.set(mock::MockSDOptimizer, ::MOI.TerminationStatus, value::MOI.TerminationStatusCode) = (mock.terminationstatus = value)
 MOI.get(mock::MockSDOptimizer, ::MOI.PrimalStatus) = mock.primalstatus
-MOI.set!(mock::MockSDOptimizer, ::MOI.PrimalStatus, value::MOI.ResultStatusCode) = (mock.primalstatus = value)
+MOI.set(mock::MockSDOptimizer, ::MOI.PrimalStatus, value::MOI.ResultStatusCode) = (mock.primalstatus = value)
 MOI.get(mock::MockSDOptimizer, ::MOI.DualStatus) = mock.dualstatus
-MOI.set!(mock::MockSDOptimizer, ::MOI.DualStatus, value::MOI.ResultStatusCode) = (mock.dualstatus = value)
+MOI.set(mock::MockSDOptimizer, ::MOI.DualStatus, value::MOI.ResultStatusCode) = (mock.dualstatus = value)
 
 getX(mock::MockSDOptimizer) = mock.X
 getZ(mock::MockSDOptimizer) = mock.Z
@@ -129,7 +127,7 @@ function MOIU.set_mock_optimize!(mock::MockSDOptimizer, opts::Function...)
 end
 # TODO remove the following methods once it is defined for AbstractMockOptimizer in MOIU
 function MOIU.rec_mock_optimize(mock::MockSDOptimizer, opt::Function, opts::Function...)
-    # TODO replace mock.optimize! = ... by MOI.set!(..., MOIU.MockOptimizeFunction, ...)
+    # TODO replace mock.optimize! = ... by MOI.set(..., MOIU.MockOptimizeFunction, ...)
     # where MOIU.MockOptimizeFunction is a MockModelAttribute
     (mock::MockSDOptimizer) -> (opt(mock); mock.optimize! = MOIU.rec_mock_optimize(mock, opts...))
 end
@@ -137,19 +135,19 @@ MOIU.rec_mock_optimize(mock::MockSDOptimizer, opt::Function) = opt
 
 # TOD remove the following methods once it is defined for AbstractMockSDOptimizer in MOIU
 function MOIU.mock_optimize!(mock::MockSDOptimizer, termstatus::MOI.TerminationStatusCode, primal, dual...)
-    MOI.set!(mock, MOI.TerminationStatus(), termstatus)
+    MOI.set(mock, MOI.TerminationStatus(), termstatus)
     MOIU.mock_primal!(mock, primal)
     MOIU.mock_dual!(mock, dual...)
 end
 # Default termination status
 MOIU.mock_optimize!(mock::MockSDOptimizer, primdual...) = MOIU.mock_optimize!(mock, MOI.Success, primdual...)
 function MOIU.mock_optimize!(mock::MockSDOptimizer, termstatus::MOI.TerminationStatusCode)
-    MOI.set!(mock, MOI.TerminationStatus(), termstatus)
+    MOI.set(mock, MOI.TerminationStatus(), termstatus)
 end
 
 # Primal
 function MOIU.mock_primal!(mock::MockSDOptimizer, primstatus::MOI.ResultStatusCode, varprim...)
-    MOI.set!(mock, MOI.PrimalStatus(), primstatus)
+    MOI.set(mock, MOI.PrimalStatus(), primstatus)
     MOIU.mock_varprimal!(mock, varprim...)
 end
 # Default primal status
@@ -175,7 +173,7 @@ end
 
 # Dual
 function MOIU.mock_dual!(mock::MockSDOptimizer, dualstatus::MOI.ResultStatusCode, conduals...)
-    MOI.set!(mock, MOI.DualStatus(), dualstatus)
+    MOI.set(mock, MOI.DualStatus(), dualstatus)
     MOIU.mock_condual!(mock, conduals...)
 end
 # Default dual status

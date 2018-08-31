@@ -69,7 +69,7 @@ SDOIOptimizer(sdoptimizer::AbstractSDOptimizer, T=Float64) = SOItoMOIBridge{T}(s
 
 include("load.jl")
 
-function MOI.isempty(optimizer::SOItoMOIBridge)
+function MOI.is_empty(optimizer::SOItoMOIBridge)
     isempty(optimizer.double) &&
     isempty(optimizer.setconstant) &&
     isempty(optimizer.blkconstant) &&
@@ -87,7 +87,7 @@ function MOI.isempty(optimizer::SOItoMOIBridge)
 end
 function MOI.empty!(optimizer::SOItoMOIBridge{T}) where T
     for s in optimizer.double
-        MOI.delete!(m, s)
+        MOI.delete(m, s)
     end
     optimizer.double = CI[]
     optimizer.setconstant = Dict{Int64, T}()
@@ -123,70 +123,39 @@ function addblkconstant(optimizer::SOItoMOIBridge, ci::CI, x)
     x
 end
 
-function MOI.supports(optimizer::SOItoMOIBridge,
-                      ::Union{MOI.ConstraintFunction,
-                              MOI.ConstraintSet},
-                      ::Type{<:CI})
-    return true
-end
-function MOI.set!(optimizer::SOItoMOIBridge,
-                  attr::Union{MOI.ConstraintFunction,
-                              MOI.ConstraintSet},
-                  ::CI,
-                  value)
-    throw(MOI.CannotSetAttribute(attr, "Copy-only solver"))
-end
-
 function MOI.supports(optimizer::SOItoMOIBridge{T},
                       ::Union{MOI.ObjectiveSense,
                               MOI.ObjectiveFunction{<:Union{MOI.SingleVariable,
                                                             MOI.ScalarAffineFunction{T}}}}) where T
     return true
 end
-function MOI.set!(optimizer::SOItoMOIBridge{T},
-                  attr::Union{MOI.ObjectiveSense,
-                              MOI.ObjectiveFunction{<:Union{MOI.SingleVariable,
-                                                            MOI.ScalarAffineFunction{T}}}},
-                 value) where T
-    throw(MOI.CannotSetAttribute(attr, "Copy-only solver"))
-end
 
-function MOI.supportsconstraint(::SOItoMOIBridge{T},
-                                ::Type{<:Union{VF, AF{T}}},
-                                ::Type{<:SupportedSets}) where T
+function MOI.supports_constraint(::SOItoMOIBridge{T},
+                                 ::Type{<:Union{VF, AF{T}}},
+                                 ::Type{<:SupportedSets}) where T
     return true
 end
-function MOI.addconstraint!(::SOItoMOIBridge{T},
-                            func::Union{VF, AF{T}},
-                            set::SupportedSets) where T
-    throw(MOI.CannotAddConstraint{typeof(func), typeof(set)}("Copy-only solver"))
-end
 
-MOI.copy!(dest::SOItoMOIBridge, src::MOI.ModelLike; copynames=true) = MOIU.allocateload!(dest, src, copynames)
+function MOI.copy_to(dest::SOItoMOIBridge, src::MOI.ModelLike;
+                     copy_names = true)
+    return MOIU.allocate_load(dest, src, copy_names)
+end
 
 MOI.optimize!(m::SOItoMOIBridge) = MOI.optimize!(m.sdoptimizer)
 
 # Objective
 
-MOI.canget(m::SOItoMOIBridge, ::MOI.ObjectiveValue) = true
 function MOI.get(m::SOItoMOIBridge, ::MOI.ObjectiveValue)
     m.objshift + m.objsign * getprimalobjectivevalue(m.sdoptimizer) + m.objconstant
 end
 
 # Attributes
 
-MOI.canget(m::AbstractSDOptimizer, ::MOI.TerminationStatus) = true
 const SolverStatus = Union{MOI.TerminationStatus, MOI.PrimalStatus, MOI.DualStatus}
-MOI.canget(m::SOItoMOIBridge, s::SolverStatus) = MOI.canget(m.sdoptimizer, s)
 MOI.get(m::SOItoMOIBridge, s::SolverStatus) = MOI.get(m.sdoptimizer, s)
 
 
-MOI.canget(m::SOItoMOIBridge, ::MOI.ResultCount) = true
 MOI.get(m::SOItoMOIBridge, ::MOI.ResultCount) = 1
-
-MOI.canget(m::SOItoMOIBridge, ::Union{MOI.VariablePrimal,
-                                      MOI.ConstraintPrimal,
-                                      MOI.ConstraintDual}, ::Type{<:MOI.Index}) = true
 
 function _getblock(M, blk::Int, s::Type{<:Union{NS, ZS}})
     diag(block(M, blk))
