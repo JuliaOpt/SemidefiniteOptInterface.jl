@@ -60,6 +60,9 @@ MockSDOptimizer{T}() where T = MockSDOptimizer{T}(0,
                                                   BlockMatrix{T}(Matrix{T}[]),
                                                   T[])
 mockSDoptimizer(T::Type) = SDOIOptimizer(MockSDOptimizer{T}(), T)
+
+MOI.get(::MockSDOptimizer, ::MOI.SolverName) = "MockSD"
+
 function MOI.empty!(mock::MockSDOptimizer{T}) where T
     mock.nconstrs = 0
     mock.blkdims = Int[]

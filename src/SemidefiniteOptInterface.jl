@@ -69,6 +69,10 @@ SDOIOptimizer(sdoptimizer::AbstractSDOptimizer, T=Float64) = SOItoMOIBridge{T}(s
 
 include("load.jl")
 
+function MOI.get(optimizer::SOItoMOIBridge, attr::MOI.SolverName)
+    return MOI.get(optimizer.sdoptimizer, attr)
+end
+
 function MOI.is_empty(optimizer::SOItoMOIBridge)
     isempty(optimizer.double) &&
     isempty(optimizer.setconstant) &&
