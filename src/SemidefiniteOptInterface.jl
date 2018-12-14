@@ -141,6 +141,7 @@ function MOI.copy_to(dest::SOItoMOIBridge, src::MOI.ModelLike;
                      copy_names = true)
     return MOIU.allocate_load(dest, src, copy_names)
 end
+MOIU.supports_allocate_load(::SOItoMOIBridge, copy_names::Bool) = !copy_names
 
 MOI.optimize!(m::SOItoMOIBridge) = MOI.optimize!(m.sdoptimizer)
 
