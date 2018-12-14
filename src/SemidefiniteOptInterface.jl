@@ -137,9 +137,8 @@ function MOI.supports_constraint(::SOItoMOIBridge{T},
     return true
 end
 
-function MOI.copy_to(dest::SOItoMOIBridge, src::MOI.ModelLike;
-                     copy_names = true)
-    return MOIU.allocate_load(dest, src, copy_names)
+function MOI.copy_to(dest::SOItoMOIBridge, src::MOI.ModelLike; kws...)
+    return MOIU.automatic_copy_to(dest, src; kws...)
 end
 MOIU.supports_allocate_load(::SOItoMOIBridge, copy_names::Bool) = !copy_names
 
