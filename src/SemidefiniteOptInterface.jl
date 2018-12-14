@@ -89,6 +89,7 @@ function MOI.empty!(optimizer::SOItoMOIBridge{T}) where T
     for s in optimizer.double
         MOI.delete(m, s)
     end
+    MOI.empty!(optimizer.sdoptimizer)
     optimizer.double = CI[]
     optimizer.setconstant = Dict{Int64, T}()
     optimizer.blkconstant = Dict{Int, T}()

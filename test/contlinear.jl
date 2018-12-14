@@ -80,13 +80,16 @@
     MOIT.linear7test(cached_mock_optimizer, config)
 
     MOIU.set_mock_optimize!(mock, (mock) -> MOIU.mock_optimize!(mock,
+                                                                MOI.Infeasible,
                                                                 tuple(),
                                                                 [1.0]))
     MOIT.linear8atest(cached_mock_optimizer, config)
     MOIU.set_mock_optimize!(mock, (mock) -> MOIU.mock_optimize!(mock,
+                                                                MOI.DualInfeasible,
                                                                 (MOI.InfeasibilityCertificate, [[0.7709], [0.2291], [0.3126]])))
     MOIT.linear8btest(cached_mock_optimizer, config)
     MOIU.set_mock_optimize!(mock, (mock) -> MOIU.mock_optimize!(mock,
+                                                                MOI.DualInfeasible,
                                                                 (MOI.InfeasibilityCertificate, [[0.5], [0.5]])))
     MOIT.linear8ctest(cached_mock_optimizer, config)
     MOIU.set_mock_optimize!(mock, (mock) -> MOIU.mock_optimize!(mock,
@@ -114,6 +117,7 @@
                                                                 [-1.0, 0.0]))
     MOIT.linear11test(cached_mock_optimizer, config)
     MOIU.set_mock_optimize!(mock, (mock) -> MOIU.mock_optimize!(mock,
+                                                                MOI.Infeasible,
                                                                 tuple(),
                                                                 [1.0, 3.0]))
     MOIT.linear12test(cached_mock_optimizer, config)

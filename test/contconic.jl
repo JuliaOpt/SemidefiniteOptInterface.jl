@@ -17,10 +17,12 @@
                                                                     [70.2006, -7.0, -2.0, 4.0]))
         MOIT.lin2vtest(cached_mock_optimizer, config)
         MOIU.set_mock_optimize!(mock, (mock) -> MOIU.mock_optimize!(mock,
+                                                                    MOI.Infeasible,
                                                                     MOI.InfeasiblePoint,
                                                                     [-0.5, 0.5]))
         MOIT.lin3test(cached_mock_optimizer, config)
         MOIU.set_mock_optimize!(mock, (mock) -> MOIU.mock_optimize!(mock,
+                                                                    MOI.Infeasible,
                                                                     MOI.InfeasiblePoint,
                                                                     [-1.0]))
         MOIT.lin4test(cached_mock_optimizer, config)
@@ -43,6 +45,7 @@
                                                                     [-1.4142, 1.0, -0.7071, -1.0, -0.3536, 1.0, 0.7071, -0.3536]))
         MOIT.soc2ptest(MOIB.SOCtoPSD{Float64}(cached_mock_optimizer), config)
         MOIU.set_mock_optimize!(mock, (mock) -> MOIU.mock_optimize!(mock,
+                                                                    MOI.Infeasible,
                                                                     MOI.InfeasiblePoint,
                                                                     [-1.0, 1.0, -0.5, 1.0, -0.5]))
         MOIT.soc3test(MOIB.SOCtoPSD{Float64}(cached_mock_optimizer), config)
@@ -61,6 +64,7 @@
                                                                         [5183.15, 5182.44, -1.4142, 1.0, -0.1768, 1.0, -0.3536, -0.1768]))
             MOIT.rotatedsoc1vtest(MOIB.RSOCtoPSD{Float64}(cached_mock_optimizer), config)
             MOIU.set_mock_optimize!(mock, (mock) -> MOIU.mock_optimize!(mock,
+                                                                        MOI.Infeasible,
                                                                         tuple(),
                                                                         [141.088, -47.8864, 47.5533, -46.2201]))
             MOIT.rotatedsoc2test(MOIB.RSOCtoPSD{Float64}(cached_mock_optimizer), config)
