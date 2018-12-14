@@ -194,7 +194,7 @@ function getblock(M, blk::Int, s::Type{<:MOI.AbstractVectorSet})
     _getblock(M, blk, s)
 end
 
-getvarprimal(m::SOItoMOIBridge, blk::Int, S) = getblock(getX(m.sdoptimizer), blk, S)
+getvarprimal(m::SOItoMOIBridge, blk::Integer, S) = getblock(getX(m.sdoptimizer), blk, S)
 function getvardual(m::SOItoMOIBridge, blk::Int, S)
     getblock(getZ(m.sdoptimizer), blk, S)
 end
