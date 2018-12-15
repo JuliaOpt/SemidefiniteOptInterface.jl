@@ -53,19 +53,38 @@ MockSDOptimizer{T}() where T = MockSDOptimizer{T}(0,
                                                   (::MockSDOptimizer) -> begin end,
                                                   false,
                                                   false,
-                                                  MOI.Success,
-                                                  MOI.UnknownResultStatus,
-                                                  MOI.UnknownResultStatus,
+                                                  MOI.OptimizeNotCalled,
+                                                  MOI.NoSolution,
+                                                  MOI.NoSolution,
                                                   BlockMatrix{T}(Matrix{T}[]),
                                                   BlockMatrix{T}(Matrix{T}[]),
                                                   T[])
 mockSDoptimizer(T::Type) = SDOIOptimizer(MockSDOptimizer{T}(), T)
+
+MOI.get(::MockSDOptimizer, ::MOI.SolverName) = "MockSD"
+
+function MOI.empty!(mock::MockSDOptimizer{T}) where T
+    mock.nconstrs = 0
+    mock.blkdims = Int[]
+    mock.constraint_constants = T[]
+    mock.objective_coefficients = Tuple{T, Int, Int, Int}[]
+    mock.constraint_coefficients = Vector{Tuple{T, Int, Int, Int}}[]
+    mock.hasprimal = false
+    mock.hasdual = false
+    mock.terminationstatus = MOI.OptimizeNotCalled
+    mock.primalstatus = MOI.NoSolution
+    mock.dualstatus = MOI.NoSolution
+    mock.X = BlockMatrix{T}(Matrix{T}[])
+    mock.Z = BlockMatrix{T}(Matrix{T}[])
+    mock.y = T[]
+end
 coefficienttype(::MockSDOptimizer{T}) where T = T
 
 getnumberofconstraints(optimizer::MockSDOptimizer) = optimizer.nconstrs
 getnumberofblocks(optimizer::MockSDOptimizer) = length(optimizer.blkdims)
 getblockdimension(optimizer::MockSDOptimizer, blk) = optimizer.blkdims[blk]
-function init!(optimizer::MockSDOptimizer{T}, blkdims::Vector{Int}, nconstrs::Integer) where T
+function init!(optimizer::MockSDOptimizer{T}, blkdims::Vector{Int},
+               nconstrs::Integer) where T
     optimizer.nconstrs = nconstrs
     optimizer.blkdims = blkdims
     optimizer.constraint_constants = zeros(T, nconstrs)
@@ -84,12 +103,16 @@ function setobjectivecoefficient!(optimizer::MockSDOptimizer, val, blk::Integer,
 end
 
 getconstraintcoefficients(optimizer::MockSDOptimizer, c) = optimizer.constraint_coefficients[c]
-function setconstraintcoefficient!(optimizer::MockSDOptimizer, val, c::Integer, blk::Integer, i::Integer, j::Integer)
+function setconstraintcoefficient!(optimizer::MockSDOptimizer, val, c::Integer,
+                                   blk::Integer, i::Integer, j::Integer)
     push!(optimizer.constraint_coefficients[c], (val, blk, i, j))
 end
 
 MOI.get(mock::MockSDOptimizer, ::MOI.TerminationStatus) = mock.terminationstatus
-MOI.set(mock::MockSDOptimizer, ::MOI.TerminationStatus, value::MOI.TerminationStatusCode) = (mock.terminationstatus = value)
+function MOI.set(mock::MockSDOptimizer, ::MOI.TerminationStatus,
+                 value::MOI.TerminationStatusCode)
+    mock.terminationstatus = value
+end
 MOI.get(mock::MockSDOptimizer, ::MOI.PrimalStatus) = mock.primalstatus
 MOI.set(mock::MockSDOptimizer, ::MOI.PrimalStatus, value::MOI.ResultStatusCode) = (mock.primalstatus = value)
 MOI.get(mock::MockSDOptimizer, ::MOI.DualStatus) = mock.dualstatus
@@ -129,7 +152,10 @@ end
 function MOIU.rec_mock_optimize(mock::MockSDOptimizer, opt::Function, opts::Function...)
     # TODO replace mock.optimize! = ... by MOI.set(..., MOIU.MockOptimizeFunction, ...)
     # where MOIU.MockOptimizeFunction is a MockModelAttribute
-    (mock::MockSDOptimizer) -> (opt(mock); mock.optimize! = MOIU.rec_mock_optimize(mock, opts...))
+    (mock::MockSDOptimizer) -> begin
+        opt(mock)
+        mock.optimize! = MOIU.rec_mock_optimize(mock, opts...)
+    end
 end
 MOIU.rec_mock_optimize(mock::MockSDOptimizer, opt::Function) = opt
 
@@ -140,7 +166,9 @@ function MOIU.mock_optimize!(mock::MockSDOptimizer, termstatus::MOI.TerminationS
     MOIU.mock_dual!(mock, dual...)
 end
 # Default termination status
-MOIU.mock_optimize!(mock::MockSDOptimizer, primdual...) = MOIU.mock_optimize!(mock, MOI.Success, primdual...)
+function MOIU.mock_optimize!(mock::MockSDOptimizer, primdual...)
+    MOIU.mock_optimize!(mock, MOI.Optimal, primdual...)
+end
 function MOIU.mock_optimize!(mock::MockSDOptimizer, termstatus::MOI.TerminationStatusCode)
     MOI.set(mock, MOI.TerminationStatus(), termstatus)
 end

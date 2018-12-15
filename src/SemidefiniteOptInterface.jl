@@ -69,6 +69,10 @@ SDOIOptimizer(sdoptimizer::AbstractSDOptimizer, T=Float64) = SOItoMOIBridge{T}(s
 
 include("load.jl")
 
+function MOI.get(optimizer::SOItoMOIBridge, attr::MOI.SolverName)
+    return MOI.get(optimizer.sdoptimizer, attr)
+end
+
 function MOI.is_empty(optimizer::SOItoMOIBridge)
     isempty(optimizer.double) &&
     isempty(optimizer.setconstant) &&
@@ -89,6 +93,7 @@ function MOI.empty!(optimizer::SOItoMOIBridge{T}) where T
     for s in optimizer.double
         MOI.delete(m, s)
     end
+    MOI.empty!(optimizer.sdoptimizer)
     optimizer.double = CI[]
     optimizer.setconstant = Dict{Int64, T}()
     optimizer.blkconstant = Dict{Int, T}()
@@ -136,10 +141,10 @@ function MOI.supports_constraint(::SOItoMOIBridge{T},
     return true
 end
 
-function MOI.copy_to(dest::SOItoMOIBridge, src::MOI.ModelLike;
-                     copy_names = true)
-    return MOIU.allocate_load(dest, src, copy_names)
+function MOI.copy_to(dest::SOItoMOIBridge, src::MOI.ModelLike; kws...)
+    return MOIU.automatic_copy_to(dest, src; kws...)
 end
+MOIU.supports_allocate_load(::SOItoMOIBridge, copy_names::Bool) = !copy_names
 
 MOI.optimize!(m::SOItoMOIBridge) = MOI.optimize!(m.sdoptimizer)
 
@@ -157,15 +162,15 @@ MOI.get(m::SOItoMOIBridge, s::SolverStatus) = MOI.get(m.sdoptimizer, s)
 
 MOI.get(m::SOItoMOIBridge, ::MOI.ResultCount) = 1
 
-function _getblock(M, blk::Int, s::Type{<:Union{NS, ZS}})
+function _getblock(M, blk::Integer, s::Type{<:Union{NS, ZS}})
     diag(block(M, blk))
 end
-function _getblock(M, blk::Int, s::Type{<:PS})
+function _getblock(M, blk::Integer, s::Type{<:PS})
     -diag(block(M, blk))
 end
 # Vectorized length for matrix dimension d
 sympackedlen(d::Integer) = (d*(d+1)) >> 1
-function _getblock(M::AbstractMatrix{T}, blk::Int, s::Type{<:DS}) where T
+function _getblock(M::AbstractMatrix{T}, blk::Integer, s::Type{<:DS}) where T
     B = block(M, blk)
     d = Compat.LinearAlgebra.checksquare(B)
     n = sympackedlen(d)
@@ -180,17 +185,17 @@ function _getblock(M::AbstractMatrix{T}, blk::Int, s::Type{<:DS}) where T
     @assert k == n
     v
 end
-function getblock(M, blk::Int, s::Type{<:MOI.AbstractScalarSet})
+function getblock(M, blk::Integer, s::Type{<:MOI.AbstractScalarSet})
     vd = _getblock(M, blk, s)
     @assert length(vd) == 1
     vd[1]
 end
-function getblock(M, blk::Int, s::Type{<:MOI.AbstractVectorSet})
+function getblock(M, blk::Integer, s::Type{<:MOI.AbstractVectorSet})
     _getblock(M, blk, s)
 end
 
-getvarprimal(m::SOItoMOIBridge, blk::Int, S) = getblock(getX(m.sdoptimizer), blk, S)
-function getvardual(m::SOItoMOIBridge, blk::Int, S)
+getvarprimal(m::SOItoMOIBridge, blk::Integer, S) = getblock(getX(m.sdoptimizer), blk, S)
+function getvardual(m::SOItoMOIBridge, blk::Integer, S)
     getblock(getZ(m.sdoptimizer), blk, S)
 end
 
@@ -218,7 +223,7 @@ function _getattribute(m::SOItoMOIBridge, ci::CI{<:AVF}, f)
     f.(m, m.constrmap[ci])
 end
 
-function getslack(m::SOItoMOIBridge{T}, c::Int) where T
+function getslack(m::SOItoMOIBridge{T}, c::Integer) where T
     X = getX(m.sdoptimizer)
     blk, i, j, coef = m.slackmap[c]
     if iszero(blk)
@@ -269,7 +274,7 @@ function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, ci::CI{<:VF, S}) where
     end
 end
 
-function getdual(m::SOItoMOIBridge{T}, c::Int) where T
+function getdual(m::SOItoMOIBridge{T}, c::Integer) where T
     if c == 0
         zero(T)
     else

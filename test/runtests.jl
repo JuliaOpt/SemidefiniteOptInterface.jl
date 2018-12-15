@@ -25,8 +25,17 @@ MOIU.@model(SDModelData,
 
 mock = SDOI.MockSDOptimizer{Float64}()
 mock_optimizer = SDOI.SDOIOptimizer(mock, Float64)
+@testset "supports_allocate_load" begin
+    @test MOIU.supports_allocate_load(mock_optimizer, false)
+    @test !MOIU.supports_allocate_load(mock_optimizer, true)
+end
 cached_mock_optimizer = MOIU.CachingOptimizer(SDModelData{Float64}(),
                                               mock_optimizer)
+@testset "SolverName" begin
+    @test MOI.get(       mock,           MOI.SolverName()) == "MockSD"
+    @test MOI.get(       mock_optimizer, MOI.SolverName()) == "MockSD"
+    @test MOI.get(cached_mock_optimizer, MOI.SolverName()) == "MockSD"
+end
 config = MOIT.TestConfig(atol=1e-4, rtol=1e-4)
 
 include("unit.jl")
