@@ -3,7 +3,7 @@ include("constraint.jl")
 
 function MOIU.allocate(optimizer::SOItoMOIBridge, ::MOI.ObjectiveSense, sense::MOI.OptimizationSense)
     # To be sure that it is done before load(optimizer, ::ObjectiveFunction, ...), we do it in allocate
-    optimizer.objsign = sense == MOI.MinSense ? -1 : 1
+    optimizer.objsign = sense == MOI.MIN_SENSE ? -1 : 1
 end
 function MOIU.allocate(::SOItoMOIBridge, ::MOI.ObjectiveFunction, ::Union{MOI.SingleVariable, MOI.ScalarAffineFunction}) end
 
