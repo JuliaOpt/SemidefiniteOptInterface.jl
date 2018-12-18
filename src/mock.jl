@@ -53,9 +53,9 @@ MockSDOptimizer{T}() where T = MockSDOptimizer{T}(0,
                                                   (::MockSDOptimizer) -> begin end,
                                                   false,
                                                   false,
-                                                  MOI.OptimizeNotCalled,
-                                                  MOI.NoSolution,
-                                                  MOI.NoSolution,
+                                                  MOI.OPTIMIZE_NOT_CALLED,
+                                                  MOI.NO_SOLUTION,
+                                                  MOI.NO_SOLUTION,
                                                   BlockMatrix{T}(Matrix{T}[]),
                                                   BlockMatrix{T}(Matrix{T}[]),
                                                   T[])
@@ -71,9 +71,9 @@ function MOI.empty!(mock::MockSDOptimizer{T}) where T
     mock.constraint_coefficients = Vector{Tuple{T, Int, Int, Int}}[]
     mock.hasprimal = false
     mock.hasdual = false
-    mock.terminationstatus = MOI.OptimizeNotCalled
-    mock.primalstatus = MOI.NoSolution
-    mock.dualstatus = MOI.NoSolution
+    mock.terminationstatus = MOI.OPTIMIZE_NOT_CALLED
+    mock.primalstatus = MOI.NO_SOLUTION
+    mock.dualstatus = MOI.NO_SOLUTION
     mock.X = BlockMatrix{T}(Matrix{T}[])
     mock.Z = BlockMatrix{T}(Matrix{T}[])
     mock.y = T[]
@@ -167,7 +167,7 @@ function MOIU.mock_optimize!(mock::MockSDOptimizer, termstatus::MOI.TerminationS
 end
 # Default termination status
 function MOIU.mock_optimize!(mock::MockSDOptimizer, primdual...)
-    MOIU.mock_optimize!(mock, MOI.Optimal, primdual...)
+    MOIU.mock_optimize!(mock, MOI.OPTIMAL, primdual...)
 end
 function MOIU.mock_optimize!(mock::MockSDOptimizer, termstatus::MOI.TerminationStatusCode)
     MOI.set(mock, MOI.TerminationStatus(), termstatus)
@@ -179,7 +179,7 @@ function MOIU.mock_primal!(mock::MockSDOptimizer, primstatus::MOI.ResultStatusCo
     MOIU.mock_varprimal!(mock, varprim...)
 end
 # Default primal status
-MOIU.mock_primal!(mock::MockSDOptimizer, varprim::Vector) = MOIU.mock_primal!(mock, MOI.FeasiblePoint, varprim)
+MOIU.mock_primal!(mock::MockSDOptimizer, varprim::Vector) = MOIU.mock_primal!(mock, MOI.FEASIBLE_POINT, varprim)
 function MOIU.mock_primal!(mock::MockSDOptimizer)
     # No primal solution
     mock.hasprimal = false
@@ -206,7 +206,7 @@ function MOIU.mock_dual!(mock::MockSDOptimizer, dualstatus::MOI.ResultStatusCode
 end
 # Default dual status
 function MOIU.mock_dual!(mock::MockSDOptimizer, conduals...)
-    status = !mock.hasprimal || MOI.get(mock, MOI.PrimalStatus()) == MOI.InfeasiblePoint ? MOI.InfeasibilityCertificate : MOI.FeasiblePoint
+    status = !mock.hasprimal || MOI.get(mock, MOI.PrimalStatus()) == MOI.INFEASIBLE_POINT ? MOI.INFEASIBILITY_CERTIFICATE : MOI.FEASIBLE_POINT
     MOIU.mock_dual!(mock, status, conduals...)
 end
 function MOIU.mock_dual!(mock::MockSDOptimizer)
@@ -223,7 +223,7 @@ function MOIU.mock_condual!(mock::MockSDOptimizer{T}, y::Vector{T}) where T
     mock.Z = BlockMatrix{T}(map(n -> zeros(T, abs(n), abs(n)), mock.blkdims))
     # FIXME shouldn't Z be defined as the opposite i.e. Z = C - sum y_i A_i >= 0
     # instead of sum y_i A_i - C <= 0 ?
-    if mock.dualstatus != MOI.InfeasibilityCertificate
+    if mock.dualstatus != MOI.INFEASIBILITY_CERTIFICATE
         # Infeasibility certificate is a ray so we only take the homogeneous part
         # FIXME:check that this is also done IN MOIU.MockOptimizer
         for (α, blk, i, j) in mock.objective_coefficients
