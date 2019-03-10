@@ -39,8 +39,12 @@ bridged = MOIB.full_bridge_optimizer(cached, Float64)
 end
 config = MOIT.TestConfig(atol=1e-4, rtol=1e-4)
 
-include("unit.jl")
-include("contlinear.jl")
+@testset "Unit" begin
+    include("unit.jl")
+end
+@testset "MOI Continuous Linear" begin
+    include("contlinear.jl")
+end
 @testset "MOI Continuous Conic" begin
     include("contconic.jl")
 end
