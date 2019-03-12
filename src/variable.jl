@@ -84,6 +84,9 @@ function MOIU.allocate_constraint(m::SOItoMOIBridge{T}, f::VF, s::SupportedSets)
     end
 end
 
+_getconstant(m::SOItoMOIBridge, s::MOI.AbstractScalarSet) = MOIU.getconstant(s)
+_getconstant(m::SOItoMOIBridge{T}, s::MOI.AbstractSet) where T = zero(T)
+
 _var(f::SVF, j) = f.variable
 _var(f::VVF, j) = f.variables[j]
 function MOIU.load_constraint(m::SOItoMOIBridge, ci::CI, f::VF, s::SupportedSets)
