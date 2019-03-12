@@ -288,22 +288,6 @@ end
 function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, ci::CI)
     return _getattribute(m, ci, getdual)
 end
-function scalevec!(v, c)
-    d = div(isqrt(1+8length(v))-1, 2)
-    @assert div(d*(d+1), 2) == length(v)
-    i = 1
-    for j in 1:d
-        for k in i:(i+j-2)
-            v[k] *= c
-        end
-        i += j
-    end
-    return v
-end
-function MOI.get(m::SOItoMOIBridge{T}, ::MOI.ConstraintDual,
-                 ci::CI{<:SAF{T}, DS}) where T
-    return scalevec!(_getattribute(m, ci, getdual), one(T)/2)
-end
 
 include("sdpa.jl")
 include("mock.jl")
