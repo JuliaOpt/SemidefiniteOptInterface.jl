@@ -250,21 +250,6 @@ function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal,
     end
 end
 
-function getvardual(m::SOItoMOIBridge{T}, vi::VI) where T
-    Z = getZ(m.sdoptimizer)
-    z = zero(T)
-    for (blk, i, j, coef) in varmap(m, vi)
-        if blk != 0
-            z += block(Z, blk)[i, j] * sign(coef)
-        end
-    end
-    return z
-end
-getvardual(m::SOItoMOIBridge, f::SVF) = getvardual(m, f.variable)
-getvardual(m::SOItoMOIBridge, f::VVF) = map(vi -> getvardual(m, vi), f.variables)
-#function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, ci::CI{<:VF, S})
-#    _getattribute(m, ci, getdual) + getvardual(m, MOI.get(m, MOI.ConstraintFunction(), ci))
-#end
 function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, ci::CI{<:VF, S}) where S<:SupportedSets
     if ci.value < 0
         return getvardual(m, -ci.value, S)
