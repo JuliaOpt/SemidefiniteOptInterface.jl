@@ -62,4 +62,3 @@ MOIT.solve_singlevariable_obj(bridged, config)
 #                                                                [2.0]))
 #    MOIT.solve_with_upperbound(bridged, config)
 MOIT.variablenames(bridged, config)
-end
