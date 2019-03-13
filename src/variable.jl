@@ -6,7 +6,6 @@ function newblock(m::SOItoMOIBridge, n)
 end
 
 isfree(m, v::VI) = v.value in m.free
-isfree(m, v::Vector{VI}) = all(isfree.(m, v))
 function unfree(m, v)
     @assert isfree(m, v)
     delete!(m.free, v.value)
@@ -61,22 +60,32 @@ function _constraintvariable!(m::SOItoMOIBridge{T}, vs::VIS, ::DS) where T
 end
 _var(f::SVF) = f.variable
 _var(f::VVF) = f.variables
-function MOIU.allocate_constraint(m::SOItoMOIBridge{T}, f::VF, s::SupportedSets) where T
-    vis = _var(f)
-    fr = isfree(m, vis)
-    if fr
-        blk = _constraintvariable!(m, vis, s)
-        if isa(s, ZS)
-            ci = _allocate_constraint(m, f, s)
-            m.zeroblock[ci] = blk
-            ci
-        else
-            CI{typeof(f), typeof(s)}(-blk)
-        end
-    else
-        _allocate_constraint(m, f, s)
+function _throw_error_if_unfree(m, vi::MOI.VariableIndex)
+    if !isfree(m, vi)
+        error("A variable cannot be constrained by multiple ",
+              "`MOI.SingleVariable` or `MOI.VectorOfVariables` constraints.")
     end
 end
+function _throw_error_if_unfree(m, vis::MOI.Vector)
+    for vi in vis
+        _throw_error_if_unfree(m, vi)
+    end
+end
+function MOIU.allocate_constraint(m::SOItoMOIBridge{T}, f::VF, s::SupportedSets) where T
+    vis = _var(f)
+    _throw_error_if_unfree(m, vis)
+    blk = _constraintvariable!(m, vis, s)
+    if isa(s, ZS)
+        ci = _allocate_constraint(m, f, s)
+        m.zeroblock[ci] = blk
+        return ci
+    else
+        return CI{typeof(f), typeof(s)}(-blk)
+    end
+end
+
+_getconstant(m::SOItoMOIBridge, s::MOI.AbstractScalarSet) = MOIU.getconstant(s)
+_getconstant(m::SOItoMOIBridge{T}, s::MOI.AbstractSet) where T = zero(T)
 
 _var(f::SVF, j) = f.variable
 _var(f::VVF, j) = f.variables[j]
@@ -85,7 +94,6 @@ function MOIU.load_constraint(m::SOItoMOIBridge, ci::CI, f::VF, s::SupportedSets
         setconstant!(m, ci, s)
         cs = m.constrmap[ci]
         @assert !isempty(cs)
-        loadslacks!(m, cs)
         for k in 1:length(cs)
             vm = varmap(m, _var(f, k))
             # For free variables, the length of vm is 2, clearly not the case here
