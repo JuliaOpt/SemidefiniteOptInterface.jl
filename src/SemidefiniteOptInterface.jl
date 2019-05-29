@@ -164,8 +164,8 @@ MOI.optimize!(m::SOItoMOIBridge) = MOI.optimize!(m.sdoptimizer)
 
 # Objective
 
-function MOI.get(m::SOItoMOIBridge, ::MOI.ObjectiveValue)
-    m.objshift + m.objsign * getprimalobjectivevalue(m.sdoptimizer) + m.objconstant
+function MOI.get(m::SOItoMOIBridge, attr::Union{MOI.ObjectiveValue, MOI.DualObjectiveValue})
+    return m.objshift + m.objsign * MOI.get(m.sdoptimizer, attr) + m.objconstant
 end
 
 # Attributes
