@@ -6,8 +6,8 @@ nblocks(bm::BlockMatrix) = length(bm.blocks)
 block(bm::BlockMatrix, i::Integer) = bm.blocks[i]
 
 function Base.size(bm::AbstractBlockMatrix)
-    n = Compat.mapreduce(blk -> Compat.LinearAlgebra.checksquare(block(bm, blk)),
-                         +, 1:nblocks(bm), init=0)
+    n = mapreduce(blk -> LinearAlgebra.checksquare(block(bm, blk)),
+                  +, 1:nblocks(bm), init=0)
     return (n, n)
 end
 function Base.getindex(bm::AbstractBlockMatrix, i::Integer, j::Integer)

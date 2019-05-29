@@ -4,8 +4,7 @@ using MathOptInterface
 const MOI = MathOptInterface
 const MOIU = MOI.Utilities
 
-using Compat
-using Compat.LinearAlgebra # for diag
+using LinearAlgebra # for diag
 
 abstract type AbstractSDOptimizer <: MOI.AbstractOptimizer end
 
@@ -186,7 +185,7 @@ end
 sympackedlen(d::Integer) = (d*(d+1)) >> 1
 function _getblock(M::AbstractMatrix{T}, blk::Integer, s::Type{<:DS}) where T
     B = block(M, blk)
-    d = Compat.LinearAlgebra.checksquare(B)
+    d = LinearAlgebra.checksquare(B)
     n = sympackedlen(d)
     v = Vector{T}(undef, n)
     k = 0
