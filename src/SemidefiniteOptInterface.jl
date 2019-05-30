@@ -63,8 +63,15 @@ SDOIOptimizer(sdoptimizer::AbstractSDOptimizer, T=Float64) = SOItoMOIBridge{T}(s
 
 include("load.jl")
 
-function MOI.get(optimizer::SOItoMOIBridge, attr::MOI.SolverName)
+function MOI.supports(optimizer::SOItoMOIBridge, attr::MOI.AbstractOptimizerAttribute)
+    return MOI.supports(optimizer.sdoptimizer, attr)
+end
+function MOI.get(optimizer::SOItoMOIBridge, attr::MOI.AbstractOptimizerAttribute)
     return MOI.get(optimizer.sdoptimizer, attr)
+end
+function MOI.set(optimizer::SOItoMOIBridge,
+                 attr::MOI.AbstractOptimizerAttribute, value)
+    return MOI.set(optimizer.sdoptimizer, attr, value)
 end
 
 function MOI.is_empty(optimizer::SOItoMOIBridge)
@@ -104,7 +111,7 @@ end
 
 function setconstant!(optimizer::SOItoMOIBridge, ci::CI, s) end
 function setconstant!(optimizer::SOItoMOIBridge, ci::CI, s::MOI.AbstractScalarSet)
-    optimizer.setconstant[ci.value] = MOIU.getconstant(s)
+    optimizer.setconstant[ci.value] = MOI.constant(s)
 end
 function set_constant(optimizer::SOItoMOIBridge,
                       ci::CI{<:MOI.AbstractScalarFunction,
@@ -168,10 +175,11 @@ function MOI.get(m::SOItoMOIBridge, attr::Union{MOI.ObjectiveValue, MOI.DualObje
 end
 
 # Attributes
-
-const SolverStatus = Union{MOI.TerminationStatus, MOI.PrimalStatus, MOI.DualStatus}
-MOI.get(m::SOItoMOIBridge, s::SolverStatus) = MOI.get(m.sdoptimizer, s)
-
+function MOI.get(m::SOItoMOIBridge,
+                 attr::Union{MOI.RawStatusString, MOI.TerminationStatus,
+                             MOI.PrimalStatus, MOI.DualStatus, MOI.SolveTime})
+    return MOI.get(m.sdoptimizer, attr)
+end
 
 MOI.get(m::SOItoMOIBridge, ::MOI.ResultCount) = 1
 

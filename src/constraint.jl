@@ -19,7 +19,7 @@ function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange,
     f = MOIU.canonical(f) # sum terms with same variables and same outputindex
     @assert length(cs) == 1
     c = first(cs)
-    rhs = MOIU.getconstant(s) - MOI._constant(f)
+    rhs = MOI.constant(s) - MOI.constant(f)
     for t in f.terms
         if !iszero(t.coefficient)
             for (blk, i, j, coef, shift) in varmap(m, t.variable_index)
