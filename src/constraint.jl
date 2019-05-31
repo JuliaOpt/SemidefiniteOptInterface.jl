@@ -1,4 +1,4 @@
-nconstraints(f::Union{SVF, SAF}, s) = 1
+nconstraints(f::Union{MOI.SingleVariable, SAF}, s) = 1
 nconstraints(f::VVF, s) = length(f.variables)
 
 function _allocate_constraint(m::SOItoMOIBridge, f, s)

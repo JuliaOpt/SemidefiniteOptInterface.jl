@@ -10,11 +10,10 @@ abstract type AbstractSDOptimizer <: MOI.AbstractOptimizer end
 
 include("interface.jl")
 
-const SVF = MOI.SingleVariable
 const VVF = MOI.VectorOfVariables
-const VF  = Union{SVF, VVF}
+const VF  = Union{MOI.SingleVariable, VVF}
 const SAF{T} = MOI.ScalarAffineFunction{T}
-const ASF{T} = Union{SVF, SAF{T}}
+const ASF{T} = Union{MOI.SingleVariable, SAF{T}}
 
 const ZS = Union{MOI.EqualTo, MOI.Zeros}
 const NS = Union{MOI.GreaterThan, MOI.Nonnegatives}

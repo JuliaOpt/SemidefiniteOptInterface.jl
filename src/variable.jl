@@ -58,7 +58,7 @@ function _constraintvariable!(m::SOItoMOIBridge{T}, vs::VIS, ::DS) where T
     end
     blk
 end
-_var(f::SVF) = f.variable
+_var(f::MOI.SingleVariable) = f.variable
 _var(f::VVF) = f.variables
 function _throw_error_if_unfree(m, vi::MOI.VariableIndex)
     if !isfree(m, vi)
@@ -87,7 +87,7 @@ end
 _constant(m::SOItoMOIBridge, s::MOI.AbstractScalarSet) = MOI.constant(s)
 _constant(m::SOItoMOIBridge{T}, s::MOI.AbstractSet) where T = zero(T)
 
-_var(f::SVF, j) = f.variable
+_var(f::MOI.SingleVariable, j) = f.variable
 _var(f::VVF, j) = f.variables[j]
 function MOIU.load_constraint(m::SOItoMOIBridge, ci::CI, f::VF, s::SupportedSets)
     if ci.value >= 0 # i.e. s is ZS or _var(f) wasn't free at allocate_constraint
