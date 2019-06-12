@@ -10,7 +10,7 @@ function _allocate_constraint(m::SOItoMOIBridge, f, s)
     m.nconstrs += n
     return ci
 end
-function MOIU.allocate_constraint(m::SOItoMOIBridge, f::SAF, s::SupportedSets)
+function MOIU.allocate_constraint(m::SOItoMOIBridge, f::SAF, s::MOI.EqualTo)
     _allocate_constraint(m::SOItoMOIBridge, f, s)
 end
 
@@ -34,7 +34,7 @@ function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange,
     setconstraintconstant!(m.sdoptimizer, rhs, c)
 end
 
-function MOIU.load_constraint(m::SOItoMOIBridge, ci::CI, f::SAF, s::SupportedSets)
+function MOIU.load_constraint(m::SOItoMOIBridge, ci::CI, f::SAF, s::MOI.EqualTo)
     setconstant!(m, ci, s)
     cs = m.constrmap[ci]
     @assert !isempty(cs)

@@ -15,11 +15,8 @@ const VF  = Union{MOI.SingleVariable, VVF}
 const SAF{T} = MOI.ScalarAffineFunction{T}
 const ASF{T} = Union{MOI.SingleVariable, SAF{T}}
 
-const ZS = Union{MOI.EqualTo, MOI.Zeros}
-const NS = Union{MOI.GreaterThan, MOI.Nonnegatives}
-const PS = Union{MOI.LessThan, MOI.Nonpositives}
 const DS = MOI.PositiveSemidefiniteConeTriangle
-const SupportedSets = Union{ZS, NS, PS, DS}
+const SupportedSets = Union{MOI.Zeros, MOI.Nonnegatives, DS}
 
 const VI = MOI.VariableIndex
 const CI{F, S} = MOI.ConstraintIndex{F, S}
@@ -120,7 +117,7 @@ end
 function set_constant(optimizer::SOItoMOIBridge{T}, ci::CI) where T
     return zeros(T, length(optimizer.constrmap[ci]))
 end
-function addblkconstant(optimizer::SOItoMOIBridge, ci::CI{<:Any, <:Union{NS, PS}}, x)
+function addblkconstant(optimizer::SOItoMOIBridge, ci::CI{<:Any, MOI.Nonnegatives}, x)
     blk = -ci.value
     return x .+ optimizer.blkconstant[blk]
 end
@@ -142,16 +139,8 @@ end
 #    variables.
 function MOI.supports_constraint(
     ::SOItoMOIBridge, ::Type{MOI.VectorOfVariables},
-    ::Type{<:Union{MOI.Zeros, MOI.Nonnegatives, MOI.Nonpositives,
+    ::Type{<:Union{MOI.Zeros, MOI.Nonnegatives,
                    MOI.PositiveSemidefiniteConeTriangle}})
-    return true
-end
-# This support could be remove thanks to variable bridges.
-# The VectorizeVariableBridge would redirect to the above case and then the
-# resulting function would be shifted by the constant.
-function MOI.supports_constraint(
-    ::SOItoMOIBridge{T}, ::Type{MOI.SingleVariable},
-    ::Type{<:Union{MOI.EqualTo{T}, MOI.GreaterThan{T}, MOI.LessThan{T}}}) where T
     return true
 end
 function MOI.supports_constraint(
@@ -182,11 +171,8 @@ end
 
 MOI.get(m::SOItoMOIBridge, ::MOI.ResultCount) = 1
 
-function _getblock(M, blk::Integer, s::Type{<:Union{NS, ZS}})
+function _getblock(M, blk::Integer, s::Type{<:Union{MOI.Nonnegatives, MOI.Zeros}})
     return diag(block(M, blk))
-end
-function _getblock(M, blk::Integer, s::Type{<:PS})
-    return -diag(block(M, blk))
 end
 # Vectorized length for matrix dimension d
 sympackedlen(d::Integer) = (d*(d+1)) >> 1
@@ -213,11 +199,8 @@ end
 function getblock(M, blk::Integer, s::Type{<:MOI.AbstractVectorSet})
     return _getblock(M, blk, s)
 end
-
 getvarprimal(m::SOItoMOIBridge, blk::Integer, S) = getblock(getX(m.sdoptimizer), blk, S)
 function getvardual(m::SOItoMOIBridge, blk::Integer, S)
-    z = getZ(m.sdoptimizer)
-    b = getblock(z, blk, S)
     return getblock(getZ(m.sdoptimizer), blk, S)
 end
 
@@ -245,8 +228,8 @@ function _getattribute(m::SOItoMOIBridge, ci::CI{<:VVF}, f)
     return f.(m, m.constrmap[ci])
 end
 
-function MOI.get(m::SOItoMOIBridge, a::MOI.ConstraintPrimal,
-                 ci::CI{F, S}) where {F, S}
+function MOI.get(m::SOItoMOIBridge{T}, a::MOI.ConstraintPrimal,
+                 ci::MOI.ConstraintIndex{F, S}) where {T, F, S}
     if ci.value >= 0
         return set_constant(m, ci)
     else
@@ -261,7 +244,7 @@ function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, ci::CI{<:VF, S}) where
         return getvardual(m, -ci.value, S)
     else
         dual = _getattribute(m, ci, getdual)
-        if haskey(m.zeroblock, ci) # ZS
+        if haskey(m.zeroblock, ci) # MOI.Zeros
             return dual + getvardual(m, m.zeroblock[ci], S)
         else # var constraint on unfree constraint
             return dual
