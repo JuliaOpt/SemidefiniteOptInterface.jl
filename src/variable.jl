@@ -11,7 +11,7 @@ function unfree(m, v)
     delete!(m.free, v.value)
 end
 
-function _constraintvariable!(m::SOItoMOIBridge{T}, vs::VIS, s::ZS) where T
+function _constraintvariable!(m::SOItoMOIBridge{T}, vs::VIS, s::MOI.Zeros) where T
     blk = newblock(m, -_length(vs))
     for (i, v) in _enumerate(vs)
         setvarmap!(m, v, (blk, i, i, one(T), _constant(m, s)))
@@ -19,18 +19,16 @@ function _constraintvariable!(m::SOItoMOIBridge{T}, vs::VIS, s::ZS) where T
     end
     blk
 end
-vscaling(::Type{<:NS}) = 1.
-vscaling(::Type{<:PS}) = -1.
 _length(vi::VI) = 1
 _length(vi::Vector{VI}) = length(vi)
 _enumerate(vi::VI) = enumerate((vi,))
 _enumerate(vi::Vector{VI}) = enumerate(vi)
-function _constraintvariable!(m::SOItoMOIBridge, vs::VIS, s::S) where S<:Union{NS, PS}
+function _constraintvariable!(m::SOItoMOIBridge, vs::VIS, s::MOI.Nonnegatives)
     blk = newblock(m, -_length(vs))
     cst = _constant(m, s)
     m.blkconstant[blk] = cst
     for (i, v) in _enumerate(vs)
-        setvarmap!(m, v, (blk, i, i, vscaling(S), cst))
+        setvarmap!(m, v, (blk, i, i, 1.0, cst))
         unfree(m, v)
     end
     blk
@@ -75,7 +73,7 @@ function MOIU.allocate_constraint(m::SOItoMOIBridge{T}, f::VF, s::SupportedSets)
     vis = _var(f)
     _throw_error_if_unfree(m, vis)
     blk = _constraintvariable!(m, vis, s)
-    if isa(s, ZS)
+    if isa(s, MOI.Zeros)
         ci = _allocate_constraint(m, f, s)
         m.zeroblock[ci] = blk
         return ci
@@ -90,8 +88,7 @@ _constant(m::SOItoMOIBridge{T}, s::MOI.AbstractSet) where T = zero(T)
 _var(f::MOI.SingleVariable, j) = f.variable
 _var(f::VVF, j) = f.variables[j]
 function MOIU.load_constraint(m::SOItoMOIBridge, ci::CI, f::VF, s::SupportedSets)
-    if ci.value >= 0 # i.e. s is ZS or _var(f) wasn't free at allocate_constraint
-        setconstant!(m, ci, s)
+    if ci.value >= 0 # i.e. s is MOI.Zeros or _var(f) wasn't free at allocate_constraint
         cs = m.constrmap[ci]
         @assert !isempty(cs)
         for k in 1:length(cs)
