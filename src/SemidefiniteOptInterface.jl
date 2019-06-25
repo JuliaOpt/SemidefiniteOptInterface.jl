@@ -10,54 +10,123 @@ abstract type AbstractSDOptimizer <: MOI.AbstractOptimizer end
 
 include("interface.jl")
 
-const VVF = MOI.VectorOfVariables
-const VF  = Union{MOI.SingleVariable, VVF}
 const SAF{T} = MOI.ScalarAffineFunction{T}
-const ASF{T} = Union{MOI.SingleVariable, SAF{T}}
 
-const DS = MOI.PositiveSemidefiniteConeTriangle
-const SupportedSets = Union{MOI.Zeros, MOI.Nonnegatives, DS}
+const SupportedSets = Union{MOI.Nonnegatives, MOI.PositiveSemidefiniteConeTriangle}
 
-const VI = MOI.VariableIndex
 const CI{F, S} = MOI.ConstraintIndex{F, S}
+const AFFEQ{T} = MOI.ConstraintIndex{MOI.ScalarAffineFunction{T}, MOI.EqualTo{T}}
 
 mutable struct SOItoMOIBridge{T, SIT <: AbstractSDOptimizer} <: MOI.AbstractOptimizer
     sdoptimizer::SIT
-    setconstant::Dict{Int64, T}
-    blkconstant::Dict{Int, T}
+    b::Vector{T}
     objconstant::T
     objsign::Int
-    objshift::T
-    nconstrs::Int
-    nblocks::Int
     blockdims::Vector{Int}
-    free::BitSet
-    varmap::Vector{Vector{Tuple{Int, Int, Int, T, T}}} # Variable Index vi -> blk, i, j, coef, shift # x = sum coef * block(X, blk)[i, j] + shift
-    zeroblock::Dict{CI, Int}
-    constrmap::Dict{CI, UnitRange{Int}} # Constraint Index ci -> cs
-    double::Vector{CI} # created when there are two cones for same variable
+    varmap::Vector{Tuple{Int, Int, Int}} # Variable Index vi -> blk, i, j
     function SOItoMOIBridge{T}(sdoptimizer::SIT) where {T, SIT}
-        new{T, SIT}(sdoptimizer, Dict{Int64, T}(), Dict{Int, T}(),
-            zero(T), 1, zero(T), 0, 0,
-            Int[],
-            BitSet(),
-            Vector{Tuple{Int, Int, Int, T}}[],
-            Dict{CI, Int}(),
-            Dict{CI, UnitRange{Int}}(),
-            CI[])
+        new{T, SIT}(sdoptimizer, T[], zero(T), 1,
+                    Int[], Vector{Tuple{Int, Int, Int, T}}[])
     end
 end
-varmap(optimizer::SOItoMOIBridge, vi::VI) = optimizer.varmap[vi.value]
-function setvarmap!(optimizer::SOItoMOIBridge{T}, vi::VI, v::Tuple{Int, Int, Int, T, T}) where T
-    setvarmap!(optimizer, vi, [v])
-end
-function setvarmap!(optimizer::SOItoMOIBridge{T}, vi::VI, vs::Vector{Tuple{Int, Int, Int, T, T}}) where T
-    optimizer.varmap[vi.value] = vs
+varmap(optimizer::SOItoMOIBridge, vi::MOI.VariableIndex) = optimizer.varmap[vi.value]
+function setvarmap!(optimizer::SOItoMOIBridge{T}, vi::MOI.VariableIndex, v::Tuple{Int, Int, Int}) where T
+    setvarmap!(optimizer, vi, v)
 end
 
 SDOIOptimizer(sdoptimizer::AbstractSDOptimizer, T=Float64) = SOItoMOIBridge{T}(sdoptimizer)
 
-include("load.jl")
+function MOIU.allocate(optimizer::SOItoMOIBridge, ::MOI.ObjectiveSense, sense::MOI.OptimizationSense)
+    # To be sure that it is done before load(optimizer, ::ObjectiveFunction, ...), we do it in allocate
+    optimizer.objsign = sense == MOI.MIN_SENSE ? -1 : 1
+end
+function MOIU.allocate(::SOItoMOIBridge, ::MOI.ObjectiveFunction, ::Union{MOI.SingleVariable, MOI.ScalarAffineFunction}) end
+
+function MOIU.load(::SOItoMOIBridge, ::MOI.ObjectiveSense, ::MOI.OptimizationSense) end
+# Loads objective coefficient α * vi
+function load_objective_term!(optimizer::SOItoMOIBridge, α, vi::MOI.VariableIndex)
+    blk, i, j = varmap(optimizer, vi)
+    coef = optimizer.objsign * α
+    if i != j
+        coef /= 2
+    end
+    # in SDP format, it is max and in MPB Conic format it is min
+    setobjectivecoefficient!(optimizer.sdoptimizer, coef, blk, i, j)
+end
+function MOIU.load(optimizer::SOItoMOIBridge, ::MOI.ObjectiveFunction, f::MOI.ScalarAffineFunction)
+    obj = MOIU.canonical(f)
+    optimizer.objconstant = f.constant
+    for t in obj.terms
+        if !iszero(t.coefficient)
+            load_objective_term!(optimizer, t.coefficient, t.variable_index)
+        end
+    end
+end
+function MOIU.load(optimizer::SOItoMOIBridge{T}, ::MOI.ObjectiveFunction, f::MOI.SingleVariable) where T
+    load_objective_term!(optimizer, one(T), f.variable)
+end
+
+function new_block(optimizer::SOItoMOIBridge, set::MOI.Nonnegatives)
+    push!(optimizer.blockdims, -MOI.dimension(set))
+    blk = length(optimizer.blockdims)
+    for i in 1:MOI.dimension(set)
+        push!(optimizer.varmap, (blk, i, i))
+    end
+end
+
+function new_block(optimizer::SOItoMOIBridge, set::MOI.PositiveSemidefiniteConeTriangle)
+    push!(optimizer.blockdims, set.side_dimension)
+    blk = length(optimizer.blockdims)
+    for i in 1:set.side_dimension
+        for j in 1:i
+            push!(optimizer.varmap, (blk, i, j))
+        end
+    end
+end
+
+function MOIU.allocate_constrained_variables(
+    optimizer::SOItoMOIBridge,
+    set::Union{MOI.Nonnegatives, MOI.PositiveSemidefiniteConeTriangle}
+)
+    offset = length(optimizer.varmap)
+    new_block(optimizer, set)
+    ci = MOI.ConstraintIndex{MOI.VectorOfVariables, typeof(set)}(offset + 1)
+    return [MOI.VariableIndex(i) for i in offset .+ (1:MOI.dimension(set))], ci
+end
+
+function MOIU.load_constrained_variables(
+    optimizer::SOItoMOIBridge, vis::Vector{MOI.VariableIndex},
+    ci::MOI.ConstraintIndex{MOI.VectorOfVariables},
+    set::Union{MOI.Nonnegatives, MOI.PositiveSemidefiniteConeTriangle})
+end
+
+function MOIU.load_variables(optimizer::SOItoMOIBridge, nvars)
+    @assert nvars == length(optimizer.varmap)
+    init!(optimizer.sdoptimizer, optimizer.blockdims, length(optimizer.b))
+end
+
+function MOIU.allocate_constraint(optimizer::SOItoMOIBridge{T},
+                                  func::MOI.ScalarAffineFunction{T},
+                                  set::MOI.EqualTo{T}) where T
+    push!(optimizer.b, MOI.constant(set))
+    return AFFEQ{T}(length(optimizer.b))
+end
+
+function MOIU.load_constraint(m::SOItoMOIBridge, ci::AFFEQ,
+                              f::MOI.ScalarAffineFunction, s::MOI.EqualTo)
+    f = MOIU.canonical(f) # sum terms with same variables and same outputindex
+    for t in f.terms
+        if !iszero(t.coefficient)
+            blk, i, j = varmap(m, t.variable_index)
+            coef = t.coefficient
+            if i != j
+                coef /= 2
+            end
+            setconstraintcoefficient!(m.sdoptimizer, coef, ci.value, blk, i, j)
+        end
+    end
+    setconstraintconstant!(m.sdoptimizer, MOI.constant(s) - MOI.constant(f), ci.value)
+end
 
 function MOI.supports(optimizer::SOItoMOIBridge, attr::MOI.AbstractOptimizerAttribute)
     return MOI.supports(optimizer.sdoptimizer, attr)
@@ -71,57 +140,32 @@ function MOI.set(optimizer::SOItoMOIBridge,
 end
 
 function MOI.is_empty(optimizer::SOItoMOIBridge)
-    isempty(optimizer.double) &&
-    isempty(optimizer.setconstant) &&
-    isempty(optimizer.blkconstant) &&
+    isempty(optimizer.b) &&
     iszero(optimizer.objconstant) &&
     optimizer.objsign == 1 &&
-    iszero(optimizer.objshift) &&
-    iszero(optimizer.nconstrs) &&
-    iszero(optimizer.nblocks) &&
     isempty(optimizer.blockdims) &&
-    isempty(optimizer.free) &&
-    isempty(optimizer.varmap) &&
-    isempty(optimizer.zeroblock) &&
-    isempty(optimizer.constrmap)
+    isempty(optimizer.varmap)
 end
 function MOI.empty!(optimizer::SOItoMOIBridge{T}) where T
-    for s in optimizer.double
-        MOI.delete(m, s)
-    end
     MOI.empty!(optimizer.sdoptimizer)
-    optimizer.double = CI[]
-    optimizer.setconstant = Dict{Int64, T}()
-    optimizer.blkconstant = Dict{Int, T}()
+    optimizer.b = T[]
     optimizer.objconstant = zero(T)
     optimizer.objsign = 1
-    optimizer.objshift = zero(T)
-    optimizer.nconstrs = 0
-    optimizer.nblocks = 0
     optimizer.blockdims = Int[]
-    optimizer.free = BitSet()
-    optimizer.varmap = Vector{Tuple{Int, Int, Int, T}}[]
-    optimizer.zeroblock = Dict{CI, Int}()
-    optimizer.constrmap = Dict{CI, UnitRange{Int}}()
+    optimizer.varmap = Tuple{Int, Int, Int}[]
 end
 
-function setconstant!(optimizer::SOItoMOIBridge, ci::CI, s) end
-function setconstant!(optimizer::SOItoMOIBridge, ci::CI, s::MOI.AbstractScalarSet)
-    optimizer.setconstant[ci.value] = MOI.constant(s)
+function block(optimizer::SOItoMOIBridge, ci::MOI.ConstraintIndex{MOI.VectorOfVariables})
+    return optimizer.varmap[ci.value][1]
 end
-function set_constant(optimizer::SOItoMOIBridge,
-                      ci::CI{<:MOI.AbstractScalarFunction,
-                             <:MOI.AbstractScalarSet})
-    return optimizer.setconstant[ci.value]
+function dimension(optimizer::SOItoMOIBridge, ci::MOI.ConstraintIndex{MOI.VectorOfVariables})
+    blockdim = optimizer.blockdims[block(optimizer, ci)]
+    if blockdim < 0
+        return -blockdim
+    else
+        return MOI.dimension(MOI.PositiveSemidefiniteConeTriangle(blockdim))
+    end
 end
-function set_constant(optimizer::SOItoMOIBridge{T}, ci::CI) where T
-    return zeros(T, length(optimizer.constrmap[ci]))
-end
-function addblkconstant(optimizer::SOItoMOIBridge, ci::CI{<:Any, MOI.Nonnegatives}, x)
-    blk = -ci.value
-    return x .+ optimizer.blkconstant[blk]
-end
-addblkconstant(optimizer::SOItoMOIBridge, ci::CI, x) = x
 
 function MOI.supports(
     optimizer::SOItoMOIBridge{T},
@@ -131,15 +175,9 @@ function MOI.supports(
     return true
 end
 
-# Zeros and Nonpositives supports could be removed thanks to variable bridges
-# * `VectorOfVariables`-in-`Zeros` would return a `VectorAffineFunction` with
-#   zero constant and no variable created.
-# * `VectorOfVariables`-in-`Nonpositives` would create variables in
-#   `Nonnegatives` and return a `VectorAffineFunction` containing `-` the
-#    variables.
 function MOI.supports_constraint(
     ::SOItoMOIBridge, ::Type{MOI.VectorOfVariables},
-    ::Type{<:Union{MOI.Zeros, MOI.Nonnegatives,
+    ::Type{<:Union{MOI.Nonnegatives,
                    MOI.PositiveSemidefiniteConeTriangle}})
     return true
 end
@@ -159,7 +197,7 @@ MOI.optimize!(m::SOItoMOIBridge) = MOI.optimize!(m.sdoptimizer)
 # Objective
 
 function MOI.get(m::SOItoMOIBridge, attr::Union{MOI.ObjectiveValue, MOI.DualObjectiveValue})
-    return m.objshift + m.objsign * MOI.get(m.sdoptimizer, attr) + m.objconstant
+    return m.objsign * MOI.get(m.sdoptimizer, attr) + m.objconstant
 end
 
 # Attributes
@@ -171,15 +209,13 @@ end
 
 MOI.get(m::SOItoMOIBridge, ::MOI.ResultCount) = 1
 
-function _getblock(M, blk::Integer, s::Type{<:Union{MOI.Nonnegatives, MOI.Zeros}})
+function vectorize_block(M, blk::Integer, s::Type{MOI.Nonnegatives})
     return diag(block(M, blk))
 end
-# Vectorized length for matrix dimension d
-sympackedlen(d::Integer) = (d*(d+1)) >> 1
-function _getblock(M::AbstractMatrix{T}, blk::Integer, s::Type{<:DS}) where T
+function vectorize_block(M::AbstractMatrix{T}, blk::Integer, s::Type{MOI.PositiveSemidefiniteConeTriangle}) where T
     B = block(M, blk)
     d = LinearAlgebra.checksquare(B)
-    n = sympackedlen(d)
+    n = MOI.dimension(MOI.PositiveSemidefiniteConeTriangle(d))
     v = Vector{T}(undef, n)
     k = 0
     for j in 1:d
@@ -191,76 +227,27 @@ function _getblock(M::AbstractMatrix{T}, blk::Integer, s::Type{<:DS}) where T
     @assert k == n
     return v
 end
-function getblock(M, blk::Integer, s::Type{<:MOI.AbstractScalarSet})
-    vd = _getblock(M, blk, s)
-    @assert length(vd) == 1
-    return vd[1]
-end
-function getblock(M, blk::Integer, s::Type{<:MOI.AbstractVectorSet})
-    return _getblock(M, blk, s)
-end
-getvarprimal(m::SOItoMOIBridge, blk::Integer, S) = getblock(getX(m.sdoptimizer), blk, S)
-function getvardual(m::SOItoMOIBridge, blk::Integer, S)
-    return getblock(getZ(m.sdoptimizer), blk, S)
-end
 
-function MOI.get(m::SOItoMOIBridge{T}, ::MOI.VariablePrimal, vi::VI) where T
+function MOI.get(m::SOItoMOIBridge{T}, ::MOI.VariablePrimal, vi::MOI.VariableIndex) where T
     X = getX(m.sdoptimizer)
-    x = zero(T)
-    for (blk, i, j, coef, shift) in varmap(m, vi)
-        x += shift
-        if blk != 0
-            x += block(X, blk)[i, j] * sign(coef)
-        end
-    end
-    return x
-end
-function MOI.get(m::SOItoMOIBridge, vp::MOI.VariablePrimal, vi::Vector{VI})
-    return MOI.get.(m, vp, vi)
+    blk, i, j = varmap(m, vi)
+    return block(X, blk)[i, j]
 end
 
-function _getattribute(m::SOItoMOIBridge, ci::CI{<:ASF}, f)
-    cs = m.constrmap[ci]
-    @assert length(cs) == 1
-    return f(m, first(cs))
+function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintPrimal,
+                 ci::MOI.ConstraintIndex{MOI.VectorOfVariables, S}) where S<:SupportedSets
+    return vectorize_block(getX(m.sdoptimizer), block(m, ci), S)
 end
-function _getattribute(m::SOItoMOIBridge, ci::CI{<:VVF}, f)
-    return f.(m, m.constrmap[ci])
-end
-
-function MOI.get(m::SOItoMOIBridge{T}, a::MOI.ConstraintPrimal,
-                 ci::MOI.ConstraintIndex{F, S}) where {T, F, S}
-    if ci.value >= 0
-        return set_constant(m, ci)
-    else
-        # Variable Function-in-S with S different from Zeros and EqualTo and not a double variable constraint
-        blk = -ci.value
-        return addblkconstant(m, ci, getvarprimal(m, blk, S))
-    end
+function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintPrimal, ci::AFFEQ)
+    return m.b[ci.value]
 end
 
-function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, ci::CI{<:VF, S}) where S<:SupportedSets
-    if ci.value < 0
-        return getvardual(m, -ci.value, S)
-    else
-        dual = _getattribute(m, ci, getdual)
-        if haskey(m.zeroblock, ci) # MOI.Zeros
-            return dual + getvardual(m, m.zeroblock[ci], S)
-        else # var constraint on unfree constraint
-            return dual
-        end
-    end
+function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual,
+                 ci::CI{MOI.VectorOfVariables, S}) where S<:SupportedSets
+    return vectorize_block(getZ(m.sdoptimizer), block(m, ci), S)
 end
-
-function getdual(m::SOItoMOIBridge{T}, c::Integer) where T
-    if c == 0
-        return zero(T)
-    else
-        return -gety(m.sdoptimizer)[c]
-    end
-end
-function MOI.get(m::SOItoMOIBridge, ::MOI.ConstraintDual, ci::CI)
-    return _getattribute(m, ci, getdual)
+function MOI.get(optimizer::SOItoMOIBridge, ::MOI.ConstraintDual, ci::AFFEQ)
+    return -gety(optimizer.sdoptimizer)[ci.value]
 end
 
 include("sdpa.jl")
