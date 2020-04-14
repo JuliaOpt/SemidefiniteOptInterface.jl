@@ -1,4 +1,4 @@
-nconstraints(f::Union{SVF, SAF}, s) = 1
+nconstraints(f::Union{MOI.SingleVariable, SAF}, s) = 1
 nconstraints(f::VVF, s) = length(f.variables)
 
 function _allocate_constraint(m::SOItoMOIBridge, f, s)
@@ -19,7 +19,7 @@ function loadcoefficients!(m::SOItoMOIBridge, cs::UnitRange,
     f = MOIU.canonical(f) # sum terms with same variables and same outputindex
     @assert length(cs) == 1
     c = first(cs)
-    rhs = MOIU.getconstant(s) - MOI._constant(f)
+    rhs = MOI.constant(s) - MOI.constant(f)
     for t in f.terms
         if !iszero(t.coefficient)
             for (blk, i, j, coef, shift) in varmap(m, t.variable_index)

@@ -6,8 +6,8 @@ nblocks(bm::BlockMatrix) = length(bm.blocks)
 block(bm::BlockMatrix, i::Integer) = bm.blocks[i]
 
 function Base.size(bm::AbstractBlockMatrix)
-    n = Compat.mapreduce(blk -> Compat.LinearAlgebra.checksquare(block(bm, blk)),
-                         +, 1:nblocks(bm), init=0)
+    n = mapreduce(blk -> LinearAlgebra.checksquare(block(bm, blk)),
+                  +, 1:nblocks(bm), init=0)
     return (n, n)
 end
 function Base.getindex(bm::AbstractBlockMatrix, i::Integer, j::Integer)
@@ -121,7 +121,7 @@ MOI.set(mock::MockSDOptimizer, ::MOI.DualStatus, value::MOI.ResultStatusCode) = 
 getX(mock::MockSDOptimizer) = mock.X
 getZ(mock::MockSDOptimizer) = mock.Z
 gety(mock::MockSDOptimizer) = mock.y
-function getprimalobjectivevalue(mock::MockSDOptimizer{T}) where T
+function MOI.get(mock::MockSDOptimizer{T}, ::MOI.ObjectiveValue) where T
     v = zero(T)
     for (α, blk, i, j) in mock.objective_coefficients
         v += α * block(mock.X, blk)[i, j]
@@ -129,14 +129,14 @@ function getprimalobjectivevalue(mock::MockSDOptimizer{T}) where T
             v += α * block(mock.X, blk)[j, i]
         end
     end
-    v
+    return v
 end
-function getdualobjectivevalue(mock::MockSDOptimizer{T}) where T
+function MOI.get(mock::MockSDOptimizer{T}, ::MOI.DualObjectiveValue) where T
     v = zero(T)
     for c in 1:mock.nconstrs
         v += mock.constraint_constants[c] * mock.y[c]
     end
-    v
+    return v
 end
 
 function MOI.optimize!(mock::MockSDOptimizer)

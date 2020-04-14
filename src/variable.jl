@@ -14,7 +14,7 @@ end
 function _constraintvariable!(m::SOItoMOIBridge{T}, vs::VIS, s::ZS) where T
     blk = newblock(m, -_length(vs))
     for (i, v) in _enumerate(vs)
-        setvarmap!(m, v, (blk, i, i, one(T), _getconstant(m, s)))
+        setvarmap!(m, v, (blk, i, i, one(T), _constant(m, s)))
         unfree(m, v)
     end
     blk
@@ -27,7 +27,7 @@ _enumerate(vi::VI) = enumerate((vi,))
 _enumerate(vi::Vector{VI}) = enumerate(vi)
 function _constraintvariable!(m::SOItoMOIBridge, vs::VIS, s::S) where S<:Union{NS, PS}
     blk = newblock(m, -_length(vs))
-    cst = _getconstant(m, s)
+    cst = _constant(m, s)
     m.blkconstant[blk] = cst
     for (i, v) in _enumerate(vs)
         setvarmap!(m, v, (blk, i, i, vscaling(S), cst))
@@ -58,7 +58,7 @@ function _constraintvariable!(m::SOItoMOIBridge{T}, vs::VIS, ::DS) where T
     end
     blk
 end
-_var(f::SVF) = f.variable
+_var(f::MOI.SingleVariable) = f.variable
 _var(f::VVF) = f.variables
 function _throw_error_if_unfree(m, vi::MOI.VariableIndex)
     if !isfree(m, vi)
@@ -84,10 +84,10 @@ function MOIU.allocate_constraint(m::SOItoMOIBridge{T}, f::VF, s::SupportedSets)
     end
 end
 
-_getconstant(m::SOItoMOIBridge, s::MOI.AbstractScalarSet) = MOIU.getconstant(s)
-_getconstant(m::SOItoMOIBridge{T}, s::MOI.AbstractSet) where T = zero(T)
+_constant(m::SOItoMOIBridge, s::MOI.AbstractScalarSet) = MOI.constant(s)
+_constant(m::SOItoMOIBridge{T}, s::MOI.AbstractSet) where T = zero(T)
 
-_var(f::SVF, j) = f.variable
+_var(f::MOI.SingleVariable, j) = f.variable
 _var(f::VVF, j) = f.variables[j]
 function MOIU.load_constraint(m::SOItoMOIBridge, ci::CI, f::VF, s::SupportedSets)
     if ci.value >= 0 # i.e. s is ZS or _var(f) wasn't free at allocate_constraint
@@ -101,7 +101,7 @@ function MOIU.load_constraint(m::SOItoMOIBridge, ci::CI, f::VF, s::SupportedSets
             (blk, i, j, coef, shift) = first(vm)
             c = cs[k]
             setconstraintcoefficient!(m.sdoptimizer, coef, c, blk, i, j)
-            setconstraintconstant!(m.sdoptimizer,  _getconstant(m, s) - coef * shift, c)
+            setconstraintconstant!(m.sdoptimizer,  _constant(m, s) - coef * shift, c)
         end
     end
 end

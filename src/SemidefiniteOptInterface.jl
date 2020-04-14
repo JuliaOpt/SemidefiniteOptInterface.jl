@@ -4,18 +4,16 @@ using MathOptInterface
 const MOI = MathOptInterface
 const MOIU = MOI.Utilities
 
-using Compat
-using Compat.LinearAlgebra # for diag
+using LinearAlgebra # for diag
 
 abstract type AbstractSDOptimizer <: MOI.AbstractOptimizer end
 
 include("interface.jl")
 
-const SVF = MOI.SingleVariable
 const VVF = MOI.VectorOfVariables
-const VF  = Union{SVF, VVF}
+const VF  = Union{MOI.SingleVariable, VVF}
 const SAF{T} = MOI.ScalarAffineFunction{T}
-const ASF{T} = Union{SVF, SAF{T}}
+const ASF{T} = Union{MOI.SingleVariable, SAF{T}}
 
 const ZS = Union{MOI.EqualTo, MOI.Zeros}
 const NS = Union{MOI.GreaterThan, MOI.Nonnegatives}
@@ -64,8 +62,15 @@ SDOIOptimizer(sdoptimizer::AbstractSDOptimizer, T=Float64) = SOItoMOIBridge{T}(s
 
 include("load.jl")
 
-function MOI.get(optimizer::SOItoMOIBridge, attr::MOI.SolverName)
+function MOI.supports(optimizer::SOItoMOIBridge, attr::MOI.AbstractOptimizerAttribute)
+    return MOI.supports(optimizer.sdoptimizer, attr)
+end
+function MOI.get(optimizer::SOItoMOIBridge, attr::MOI.AbstractOptimizerAttribute)
     return MOI.get(optimizer.sdoptimizer, attr)
+end
+function MOI.set(optimizer::SOItoMOIBridge,
+                 attr::MOI.AbstractOptimizerAttribute, value)
+    return MOI.set(optimizer.sdoptimizer, attr, value)
 end
 
 function MOI.is_empty(optimizer::SOItoMOIBridge)
@@ -105,7 +110,7 @@ end
 
 function setconstant!(optimizer::SOItoMOIBridge, ci::CI, s) end
 function setconstant!(optimizer::SOItoMOIBridge, ci::CI, s::MOI.AbstractScalarSet)
-    optimizer.setconstant[ci.value] = MOIU.getconstant(s)
+    optimizer.setconstant[ci.value] = MOI.constant(s)
 end
 function set_constant(optimizer::SOItoMOIBridge,
                       ci::CI{<:MOI.AbstractScalarFunction,
@@ -164,15 +169,16 @@ MOI.optimize!(m::SOItoMOIBridge) = MOI.optimize!(m.sdoptimizer)
 
 # Objective
 
-function MOI.get(m::SOItoMOIBridge, ::MOI.ObjectiveValue)
-    m.objshift + m.objsign * getprimalobjectivevalue(m.sdoptimizer) + m.objconstant
+function MOI.get(m::SOItoMOIBridge, attr::Union{MOI.ObjectiveValue, MOI.DualObjectiveValue})
+    return m.objshift + m.objsign * MOI.get(m.sdoptimizer, attr) + m.objconstant
 end
 
 # Attributes
-
-const SolverStatus = Union{MOI.TerminationStatus, MOI.PrimalStatus, MOI.DualStatus}
-MOI.get(m::SOItoMOIBridge, s::SolverStatus) = MOI.get(m.sdoptimizer, s)
-
+function MOI.get(m::SOItoMOIBridge,
+                 attr::Union{MOI.RawStatusString, MOI.TerminationStatus,
+                             MOI.PrimalStatus, MOI.DualStatus, MOI.SolveTime})
+    return MOI.get(m.sdoptimizer, attr)
+end
 
 MOI.get(m::SOItoMOIBridge, ::MOI.ResultCount) = 1
 
@@ -186,7 +192,7 @@ end
 sympackedlen(d::Integer) = (d*(d+1)) >> 1
 function _getblock(M::AbstractMatrix{T}, blk::Integer, s::Type{<:DS}) where T
     B = block(M, blk)
-    d = Compat.LinearAlgebra.checksquare(B)
+    d = LinearAlgebra.checksquare(B)
     n = sympackedlen(d)
     v = Vector{T}(undef, n)
     k = 0

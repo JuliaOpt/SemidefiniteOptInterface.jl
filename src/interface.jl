@@ -95,17 +95,3 @@ function gety end
 Returns the solution Z.
 """
 function getZ end
-
-"""
-    getprimalobjectivevalue(optimizer::AbstractSDOptimizer)
-
-Returns the primal objective value.
-"""
-function getprimalobjectivevalue end
-
-"""
-    getdualobjectivevalue(optimizer::AbstractSDOptimizer)
-
-Returns the dual objective value.
-"""
-function getdualobjectivevalue end

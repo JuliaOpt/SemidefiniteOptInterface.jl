@@ -1,8 +1,7 @@
 using SemidefiniteOptInterface
 const SDOI = SemidefiniteOptInterface
 
-using Compat
-using Compat.Test
+using Test
 
 using MathOptInterface
 const MOI = MathOptInterface
@@ -13,15 +12,10 @@ include("sdpa.jl")
 
 const MOIU = MOI.Utilities
 MOIU.@model(SDModelData,
-            (),
-            (MOI.EqualTo, MOI.GreaterThan, MOI.LessThan),
+            (), (MOI.EqualTo, MOI.GreaterThan, MOI.LessThan),
             (MOI.Zeros, MOI.Nonnegatives, MOI.Nonpositives,
-             MOI.PositiveSemidefiniteConeTriangle),
-            (),
-            (MOI.SingleVariable,),
-            (MOI.ScalarAffineFunction,),
-            (MOI.VectorOfVariables,),
-            ())
+             MOI.PositiveSemidefiniteConeTriangle), (),
+            (), (MOI.ScalarAffineFunction,), (MOI.VectorOfVariables,), ())
 
 mock = SDOI.MockSDOptimizer{Float64}()
 mock_optimizer = SDOI.SDOIOptimizer(mock, Float64)
