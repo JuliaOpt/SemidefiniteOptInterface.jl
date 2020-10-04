@@ -1,3 +1,5 @@
+**This package is deprecated. It was used to reformulate MOI models in the SDPA format but this is now handled by MOI bridges.**
+
 # SemidefiniteOptInterface (SDOI)
 
 | **Build Status** |
